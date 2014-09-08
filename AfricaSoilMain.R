@@ -125,111 +125,161 @@ gbmGrid <- expand.grid(.interaction.depth = seq(1, 5, 2),
 
 set.seed(1005)
 randomSubset <- sample.int(nrow(train), nrow(train)) #full data
-gbmMODClass <- train(form = Ca ~ ., 
-                     data = train[randomSubset , seq(2, 3596)],
-                     method = "gbm",
-                     tuneGrid = gbmGrid,
-                     trControl = GBMControl,
-                     distribution = 'gaussian',
-                     nTrain = floor(nrow(train) * 0.7),
-                     verbose = TRUE)
+gbmMODCa <- train(form = Ca~., 
+                  data = train[randomSubset , seq(2, 3596)],
+                  method = "gbm",
+                  tuneGrid = gbmGrid,
+                  trControl = GBMControl,
+                  distribution = 'gaussian',
+                  nTrain = floor(nrow(train) * 0.7),
+                  verbose = TRUE)
 
 #Plot Cross Validation
-ggplot(gbmMODClass)  + theme(legend.position = "top")
+ggplot(gbmMODCa)  + theme(legend.position = "top")
+
+#Find optimal number of trees
+threshold <- 0.001
+treesCa <- gbm.perf(gbmMODCa$finalModel, method = 'test')
+treesIterated <- max(gbmGrid$.n.trees)
+gbmMODExpanded <- gbmMODCa$finalModel
+
+while(treesCa >= treesIterated - 20 & (gbmMODExpanded$test.error[treesIterated] - gbmMODExpanded$test.error[treesIterated - 100] > threshold){
+  # do another 5000 iterations  
+  gbmMODExpanded <- gbm.more(gbmMODExpanded, max(gbmGrid$.n.trees),
+                             data = train[randomSubset , seq(2, 3596)],
+                             verbose = TRUE)
+  treesCa <- gbm.perf(gbmMODExpanded, method = 'test')
+  treesIterated <- treesIterated + max(gbmGrid$.n.trees)
+  
+  if(treesIterated >= 15000){break}  
+}
 
 #---------------------------------------------------------------
 #Hiper parameter 5-fold Cross-validation "P"
-GBMControl <- trainControl(method = "cv",
-                           number = 5,
-                           verboseIter = TRUE)
-
-gbmGrid <- expand.grid(.interaction.depth = seq(1, 5, 2),
-                       .shrinkage = c(0.001, 0.003), 
-                       .n.trees = 5000)
-
-set.seed(1005)
+set.seed(1006)
 randomSubset <- sample.int(nrow(train), nrow(train)) #full data
-gbmMODClass <- train(form = P ~ ., 
-                     data = train[randomSubset , c(seq(2, 3595), 3597)],
-                     method = "gbm",
-                     tuneGrid = gbmGrid,
-                     trControl = GBMControl,
-                     distribution = 'gaussian',
-                     nTrain = floor(nrow(train) * 0.7),
-                     verbose = TRUE)
+gbmMODP <- train(form = P ~ ., 
+                 data = train[randomSubset , c(seq(2, 3595), 3597)],
+                 method = "gbm",
+                 tuneGrid = gbmGrid,
+                 trControl = GBMControl,
+                 distribution = 'gaussian',
+                 nTrain = floor(nrow(train) * 0.7),
+                 verbose = TRUE)
 
 #Plot Cross Validation
-ggplot(gbmMODClass)  + theme(legend.position = "top")
+ggplot(gbmMODP)  + theme(legend.position = "top")
 
+#Find optimal number of trees
+threshold <- 0.001
+treesP <- gbm.perf(gbmMODP$finalModel, method = 'test')
+treesIterated <- max(gbmGrid$.n.trees)
+gbmMODExpanded <- gbmMODP$finalModel
+
+while(treesP >= treesIterated - 20 & (gbmMODExpanded$test.error[treesIterated] - gbmMODExpanded$test.error[treesIterated - 100] > threshold){
+  # do another 5000 iterations  
+  gbmMODExpanded <- gbm.more(gbmMODExpanded, max(gbmGrid$.n.trees),
+                             data = train[randomSubset ,  c(seq(2, 3595), 3597)],
+                             verbose = TRUE)
+  treesP <- gbm.perf(gbmMODExpanded, method = 'test')
+  treesIterated <- treesIterated + max(gbmGrid$.n.trees)
+          
+  if(treesIterated >= 15000){break}  
+}
 #---------------------------------------------------------------
 #Hiper parameter 5-fold Cross-validation "ph"
-GBMControl <- trainControl(method = "cv",
-                           number = 5,
-                           verboseIter = TRUE)
-
-gbmGrid <- expand.grid(.interaction.depth = seq(1, 5, 2),
-                       .shrinkage = c(0.001, 0.003), 
-                       .n.trees = 5000)
-
-set.seed(1005)
+set.seed(1007)
 randomSubset <- sample.int(nrow(train), nrow(train)) #full data
-gbmMODClass <- train(form = pH ~ ., 
-                     data = train[randomSubset , c(seq(2, 3595), 3598)],
-                     method = "gbm",
-                     tuneGrid = gbmGrid,
-                     trControl = GBMControl,
-                     distribution = 'gaussian',
-                     nTrain = floor(nrow(train) * 0.7),
-                     verbose = TRUE)
+gbmMODph <- train(form = pH ~ ., 
+                  data = train[randomSubset , c(seq(2, 3595), 3598)],
+                  method = "gbm",
+                  tuneGrid = gbmGrid,
+                  trControl = GBMControl,
+                  distribution = 'gaussian',
+                  nTrain = floor(nrow(train) * 0.7),
+                  verbose = TRUE)
 
 #Plot Cross Validation
-ggplot(gbmMODClass)  + theme(legend.position = "top")
+ggplot(gbmMODph)  + theme(legend.position = "top")
 
+#Find optimal number of trees
+threshold <- 0.001
+treespH <- gbm.perf(gbmMODph$finalModel, method = 'test')
+treesIterated <- max(gbmGrid$.n.trees)
+gbmMODExpanded <- gbmMODph$finalModel
+
+while(treespH >= treesIterated - 20 & (gbmMODExpanded$test.error[treesIterated] - gbmMODExpanded$test.error[treesIterated - 100] > threshold){
+  # do another 5000 iterations  
+  gbmMODExpanded <- gbm.more(gbmMODExpanded, max(gbmGrid$.n.trees),
+                             data = train[randomSubset , c(seq(2, 3595), 3598)],
+                             verbose = TRUE)
+  treespH <- gbm.perf(gbmMODExpanded, method = 'test')
+  treesIterated <- treesIterated + max(gbmGrid$.n.trees)
+  
+  if(treesIterated >= 15000){break}  
+}
 #---------------------------------------------------------------
 #Hiper parameter 5-fold Cross-validation "SOC"
-GBMControl <- trainControl(method = "cv",
-                           number = 5,
-                           verboseIter = TRUE)
-
-gbmGrid <- expand.grid(.interaction.depth = seq(1, 5, 2),
-                       .shrinkage = c(0.001, 0.003), 
-                       .n.trees = 5000)
-
-set.seed(1005)
+set.seed(1008)
 randomSubset <- sample.int(nrow(train), nrow(train)) #full data
-gbmMODClass <- train(form = SOC ~ ., 
-                     data = train[randomSubset , c(seq(2, 3595), 3599)],
-                     method = "gbm",
-                     tuneGrid = gbmGrid,
-                     trControl = GBMControl,
-                     distribution = 'gaussian',
-                     nTrain = floor(nrow(train) * 0.7),
-                     verbose = TRUE)
+gbmMODSOC <- train(form = SOC ~ ., 
+                   data = train[randomSubset , c(seq(2, 3595), 3599)],
+                   method = "gbm",
+                   tuneGrid = gbmGrid,
+                   trControl = GBMControl,
+                   distribution = 'gaussian',
+                   nTrain = floor(nrow(train) * 0.7),
+                   verbose = TRUE)
 
 #Plot Cross Validation
-ggplot(gbmMODClass)  + theme(legend.position = "top")
+ggplot(gbmMODSOC)  + theme(legend.position = "top")
+
+#Find optimal number of trees
+threshold <- 0.001
+treesSOC <- gbm.perf(gbmMODSOC$finalModel, method = 'test')
+treesIterated <- max(gbmGrid$.n.trees)
+gbmMODExpanded <- gbmMODSOC$finalModel
+
+while(treesSOC >= treesIterated - 20 & (gbmMODExpanded$test.error[treesIterated] - gbmMODExpanded$test.error[treesIterated - 100] > threshold){
+  # do another 5000 iterations  
+  gbmMODExpanded <- gbm.more(gbmMODExpanded, max(gbmGrid$.n.trees),
+                             data = train[randomSubset , c(seq(2, 3595), 3599)],
+                             verbose = TRUE)
+  treesSOC <- gbm.perf(gbmMODExpanded, method = 'test')
+  treesIterated <- treesIterated + max(gbmGrid$.n.trees)
+  
+  if(treesIterated >= 15000){break}  
+}
 
 #---------------------------------------------------------------
 #Hiper parameter 5-fold Cross-validation "Sand"
-GBMControl <- trainControl(method = "cv",
-                           number = 5,
-                           verboseIter = TRUE)
-
-gbmGrid <- expand.grid(.interaction.depth = seq(1, 5, 2),
-                       .shrinkage = c(0.001, 0.003), 
-                       .n.trees = 5000)
-
-set.seed(1005)
+set.seed(1009)
 randomSubset <- sample.int(nrow(train), nrow(train)) #full data
-gbmMODClass <- train(form = Sand ~ ., 
-                     data = train[randomSubset , c(seq(2, 3595), 3600)],
-                     method = "gbm",
-                     tuneGrid = gbmGrid,
-                     trControl = GBMControl,
-                     distribution = 'gaussian',
-                     nTrain = floor(nrow(train) * 0.7),
-                     verbose = TRUE)
+gbmMODSand <- train(form = Sand ~ ., 
+                    data = train[randomSubset , c(seq(2, 3595), 3600)],
+                    method = "gbm",
+                    tuneGrid = gbmGrid,
+                    trControl = GBMControl,
+                    distribution = 'gaussian',
+                    nTrain = floor(nrow(train) * 0.7),
+                    verbose = TRUE)
 
 #Plot Cross Validation
-ggplot(gbmMODClass)  + theme(legend.position = "top")
+ggplot(gbmMODSand)  + theme(legend.position = "top")
 
+#Find optimal number of trees
+threshold <- 0.001
+treesSand <- gbm.perf(gbmMODSand$finalModel, method = 'test')
+treesIterated <- max(gbmGrid$.n.trees)
+gbmMODExpanded <- gbmMODSand$finalModel
+
+while(treesSand >= treesIterated - 20 & (gbmMODExpanded$test.error[treesIterated] - gbmMODExpanded$test.error[treesIterated - 100] > threshold){
+  # do another 5000 iterations  
+  gbmMODExpanded <- gbm.more(gbmMODExpanded, max(gbmGrid$.n.trees),
+                             data = train[randomSubset , c(seq(2, 3595), 3600)],
+                             verbose = TRUE)
+  treesSand <- gbm.perf(gbmMODExpanded, method = 'test')
+  treesIterated <- treesIterated + max(gbmGrid$.n.trees)
+  
+  if(treesIterated >= 15000){break}  
+}
