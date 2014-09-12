@@ -16,6 +16,7 @@ require('splines')
 require('survival')
 require('parallel')
 require('plyr')
+require('h2o')
 
 #Set Working Directory
 workingDirectory <- '/home/wacax/Wacax/Kaggle/Africa Tuesday/Africa Soil Property Prediction Challenge/'
@@ -43,6 +44,20 @@ test <- transform(test, Depth = as.factor(Depth))
 #EDA
 #Rows containing NAs
 noNAIndices <- which(apply(is.na(train), 1, sum) == 0)
+
+#Principal Components Analysis using h20
+#Merge Both train and test to perfom PCA on
+write.csv(rbind(train[,2:3595], test[,2:3595]), file = paste0(dataDirectory, 'fullDataset.csv'))
+
+#Run PCA
+localH2O = h2o.init(ip = "localhost", port = 54321, startH2O = TRUE)
+full.hex = h2o.importFile(localH2O, path = paste0(dataDirectory, 'fullDataset.csv'))
+
+PCAFull <- h2o.prcomp(full.hex)
+
+#h2o shutdown WARNING, All data on the server will be lost!
+h2o.shutdown(localH2O, prompt = TRUE)
+detach('package:h2o', unload = TRUE)   #h20 will mask functions in the caret / gbm xvalidation 
 
 #Ca histogram
 ggplot(data = train, aes(x = log(Ca))) +  geom_histogram() 
@@ -289,8 +304,7 @@ while(treesSand >= treesIterated - 20 & (gbmMODExpanded$test.error[treesIterated
 #Create an h2o parsed data
 require('h2o')
 localH2O = h2o.init(ip = "localhost", port = 54321, startH2O = TRUE)
-trainPath = system.file('extdata', paste0(dataDirectory, 'train.csv'), package = 'h2o')
-africa.hex = h2o.importFile(localH2O, path = trainPath)
+africa.hex = h2o.importFile(localH2O, path = paste0(dataDirectory, 'training.csv'))
 
 GBMModelCa <- h2o.gbm(x = seq(2, 3595),
                       y = 'Ca',
@@ -339,18 +353,20 @@ plot(GBMModeSand)
 ##########################################################
 #PREDICTIONS
 #GBM
-testPath = system.file('extdata', paste0(dataDirectory, 'test.csv'), package = 'h2o')
-africaTest.hex = h2o.importFile(localH2O, path = testPath)
+africaTest.hex = h2o.importFile(localH2O, path = paste0(dataDirectory, 'sorted_test.csv'))
 #Ca
-GBMPredictionCa <- predict(GBMModelCa, newdata = test[ , linearClassPredictors], n.trees = treesClass, type = 'response')
+GBMPredictionCa <- as.data.frame(h2o.predict(GBMModelCa, newdata = africaTest.hex))
 #P
-GBMPredictionP <- predict(GBMModelP, newdata = test[ , linearRegPredictors], n.trees = treesReg)
+GBMPredictionP <- as.data.frame(h2o.predict(GBMModelP, newdata = africaTest.hex))
 #pH
-GBMPredictionpH <- predict(GBMModepH, newdata = test[ , linearPredictorsFull], n.trees = treesAll)
+GBMPredictionpH <- as.data.frame(h2o.predict(GBMModepH, newdata = africaTest.hex))
 #SOC
-GBMPredictionSOC <- predict(GBMModeSOC, newdata = test[ , linearPredictorsFull], n.trees = treesAll)
+GBMPredictionSOC <- as.data.frame(h2o.predict(GBMModeSOC, newdata = africaTest.hex))
 #Sand
-GBMPredictionSand <- predict(GBMModeSand, newdata = test[ , linearPredictorsFull], n.trees = treesAll)
+GBMPredictionSand <- as.data.frame(h2o.predict(GBMModeSand, newdata = africaTest.hex))
+
+#h2o shutdown WARNING, All data on the server will be lost!
+h2o.shutdown(localH2O, prompt = TRUE)
 
 #########################################################
 #Write .csv 
@@ -360,3 +376,5 @@ submissionTemplate$Ca <- GBMPredictionpH
 submissionTemplate$Ca <- GBMPredictionSOC
 submissionTemplate$Ca <- GBMPredictionSand
 write.csv(submissionTemplate, file = "PredictionI.csv", row.names = FALSE)
+
+
