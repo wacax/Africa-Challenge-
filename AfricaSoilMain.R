@@ -6,7 +6,6 @@
 rm(list=ls(all=TRUE))
 
 #Load/install required libraries
-require('data.table')
 require('ggplot2')
 require('leaps')
 require('caret')
@@ -38,6 +37,7 @@ submissionTemplate <- read.csv(paste0(dataDirectory, 'sample_submission.csv'), h
 #Data Processing
 #Data Transformation
 train <- transform(train, Depth = as.factor(Depth))
+test <- transform(test, Depth = as.factor(Depth))
 
 ################################
 #EDA
@@ -171,7 +171,7 @@ gbmMODP <- train(form = P ~ .,
 ggplot(gbmMODP)  + theme(legend.position = "top")
 
 #Find optimal number of trees
-threshold <- 0.001
+threshold <- 0.0005
 treesP <- gbm.perf(gbmMODP$finalModel, method = 'test')
 treesIterated <- max(gbmGrid$.n.trees)
 gbmMODExpanded <- gbmMODP$finalModel
@@ -283,3 +283,80 @@ while(treesSand >= treesIterated - 20 & (gbmMODExpanded$test.error[treesIterated
   
   if(treesIterated >= 15000){break}  
 }
+
+#########################################################
+#Final Models using h2o GBMs 
+#Create an h2o parsed data
+require('h2o')
+localH2O = h2o.init(ip = "localhost", port = 54321, startH2O = TRUE)
+trainPath = system.file('extdata', paste0(dataDirectory, 'train.csv'), package = 'h2o')
+africa.hex = h2o.importFile(localH2O, path = trainPath)
+
+GBMModelCa <- h2o.gbm(x = seq(2, 3595),
+                      y = 'Ca',
+                      data = africa.hex,
+                      distribution = 'gaussian', 
+                      interaction.depth = gbmMODCa$bestTune[2],
+                      shrinkage = gbmMODCa$bestTune[3], 
+                      n.trees = treesCa)
+plot(GBMModelCa)
+#----------------------------------------------------------------
+GBMModelP <- h2o.gbm(x = seq(2, 3595),
+                     y = 'P',
+                     data = africa.hex,
+                     distribution = 'gaussian', 
+                     interaction.depth = gbmMODP$bestTune[2],
+                     shrinkage = gbmMODP$bestTune[3], 
+                     n.trees = treesP)
+plot(GBMModelP)
+#----------------------------------------------------------------
+GBMModepH <- h2o.gbm(x = seq(2, 3595),
+                     y = 'pH',
+                     data = africa.hex,
+                     distribution = 'gaussian', 
+                     interaction.depth = gbmMODpH$bestTune[2],
+                     shrinkage = gbmMODpH$bestTune[3], 
+                     n.trees = treespH)
+plot(GBMModepH)
+#----------------------------------------------------------------
+GBMModeSOC <- h2o.gbm(x = seq(2, 3595),
+                      y = 'SOC',
+                      data = africa.hex,
+                      distribution = 'gaussian', 
+                      interaction.depth = gbmMODSOC$bestTune[2],
+                      shrinkage = gbmMODSOC$bestTune[3], 
+                      n.trees = treesSOC)
+plot(GBMModeSOC)
+#----------------------------------------------------------------
+GBMModeSand <- h2o.gbm(x = seq(2, 3595),
+                       y = 'Sand',
+                       data = africa.hex,
+                       distribution = 'gaussian', 
+                       interaction.depth = gbmMODSand$bestTune[2],
+                       shrinkage = gbmMODSandC$bestTune[3], 
+                       n.trees = treesSand)
+plot(GBMModeSand)
+##########################################################
+#PREDICTIONS
+#GBM
+testPath = system.file('extdata', paste0(dataDirectory, 'test.csv'), package = 'h2o')
+africaTest.hex = h2o.importFile(localH2O, path = testPath)
+#Ca
+GBMPredictionCa <- predict(GBMModelCa, newdata = test[ , linearClassPredictors], n.trees = treesClass, type = 'response')
+#P
+GBMPredictionP <- predict(GBMModelP, newdata = test[ , linearRegPredictors], n.trees = treesReg)
+#pH
+GBMPredictionpH <- predict(GBMModepH, newdata = test[ , linearPredictorsFull], n.trees = treesAll)
+#SOC
+GBMPredictionSOC <- predict(GBMModeSOC, newdata = test[ , linearPredictorsFull], n.trees = treesAll)
+#Sand
+GBMPredictionSand <- predict(GBMModeSand, newdata = test[ , linearPredictorsFull], n.trees = treesAll)
+
+#########################################################
+#Write .csv 
+submissionTemplate$Ca <- GBMPredictionCa
+submissionTemplate$Ca <- GBMPredictionP
+submissionTemplate$Ca <- GBMPredictionpH
+submissionTemplate$Ca <- GBMPredictionSOC
+submissionTemplate$Ca <- GBMPredictionSand
+write.csv(submissionTemplate, file = "PredictionI.csv", row.names = FALSE)
