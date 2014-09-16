@@ -231,7 +231,6 @@ ggplot(gbmMODSand)  + theme(legend.position = "top")
 #Find optimal number of trees
 treesSand <- treeFinder(gbmMODSand$finalModel, dataNew = train[randomSubset , c(seq(2, 3595), 3600)])
 
-
 #########################################################
 #Final Models using h2o GBMs 
 #Create an h2o parsed data
