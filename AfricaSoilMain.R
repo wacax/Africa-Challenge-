@@ -16,7 +16,6 @@ require('splines')
 require('survival')
 require('parallel')
 require('plyr')
-require('h2o')
 
 #Set Working Directory
 workingDirectory <- '/home/wacax/Wacax/Kaggle/Africa Tuesday/Africa Soil Property Prediction Challenge/'
@@ -25,6 +24,7 @@ setwd(workingDirectory)
 dataDirectory <- '/home/wacax/Wacax/Kaggle/Africa Tuesday/Data/'
 
 #Load external functions
+source(paste0(workingDirectory, 'treeFinder.R'))
 
 #############################
 #Load Data
@@ -37,8 +37,8 @@ submissionTemplate <- read.csv(paste0(dataDirectory, 'sample_submission.csv'), h
 ################################
 #Data Processing
 #Data Transformation
-train <- transform(train, Depth = as.factor(Depth))
-test <- transform(test, Depth = as.factor(Depth))
+train <- transform(train, Depth = as.numeric(as.factor(train$Depth)) - 1)
+test <- transform(test, Depth = as.numeric(as.factor(test$Depth)) - 1)
 
 ################################
 #EDA
@@ -136,7 +136,7 @@ GBMControl <- trainControl(method = "cv",
 
 gbmGrid <- expand.grid(.interaction.depth = seq(1, 5, 2),
                        .shrinkage = c(0.001, 0.003), 
-                       .n.trees = 5000)
+                       .n.trees = 2000)
 
 set.seed(1005)
 randomSubset <- sample.int(nrow(train), nrow(train)) #full data
@@ -153,21 +153,7 @@ gbmMODCa <- train(form = Ca~.,
 ggplot(gbmMODCa)  + theme(legend.position = "top")
 
 #Find optimal number of trees
-threshold <- 0.001
-treesCa <- gbm.perf(gbmMODCa$finalModel, method = 'test')
-treesIterated <- max(gbmGrid$.n.trees)
-gbmMODExpanded <- gbmMODCa$finalModel
-
-while(treesCa >= treesIterated - 20 & (gbmMODExpanded$test.error[treesIterated] - gbmMODExpanded$test.error[treesIterated - 100] > threshold){
-  # do another 5000 iterations  
-  gbmMODExpanded <- gbm.more(gbmMODExpanded, max(gbmGrid$.n.trees),
-                             data = train[randomSubset , seq(2, 3596)],
-                             verbose = TRUE)
-  treesCa <- gbm.perf(gbmMODExpanded, method = 'test')
-  treesIterated <- treesIterated + max(gbmGrid$.n.trees)
-  
-  if(treesIterated >= 15000){break}  
-}
+treesCa <- treeFinder(gbmMODCa$finalModel, dataNew = train[randomSubset , seq(2, 3596)])
 
 #---------------------------------------------------------------
 #Hiper parameter 5-fold Cross-validation "P"
@@ -186,21 +172,8 @@ gbmMODP <- train(form = P ~ .,
 ggplot(gbmMODP)  + theme(legend.position = "top")
 
 #Find optimal number of trees
-threshold <- 0.0005
-treesP <- gbm.perf(gbmMODP$finalModel, method = 'test')
-treesIterated <- max(gbmGrid$.n.trees)
-gbmMODExpanded <- gbmMODP$finalModel
+treesP <- treeFinder(gbmMODP$finalModel, dataNew = train[randomSubset , c(seq(2, 3595), 3597)])
 
-while(treesP >= treesIterated - 20 & (gbmMODExpanded$test.error[treesIterated] - gbmMODExpanded$test.error[treesIterated - 100] > threshold){
-  # do another 5000 iterations  
-  gbmMODExpanded <- gbm.more(gbmMODExpanded, max(gbmGrid$.n.trees),
-                             data = train[randomSubset ,  c(seq(2, 3595), 3597)],
-                             verbose = TRUE)
-  treesP <- gbm.perf(gbmMODExpanded, method = 'test')
-  treesIterated <- treesIterated + max(gbmGrid$.n.trees)
-          
-  if(treesIterated >= 15000){break}  
-}
 #---------------------------------------------------------------
 #Hiper parameter 5-fold Cross-validation "ph"
 set.seed(1007)
@@ -218,21 +191,8 @@ gbmMODph <- train(form = pH ~ .,
 ggplot(gbmMODph)  + theme(legend.position = "top")
 
 #Find optimal number of trees
-threshold <- 0.001
-treespH <- gbm.perf(gbmMODph$finalModel, method = 'test')
-treesIterated <- max(gbmGrid$.n.trees)
-gbmMODExpanded <- gbmMODph$finalModel
+treesph <- treeFinder(gbmMODph$finalModel, dataNew = train[randomSubset , c(seq(2, 3595), 3598)])
 
-while(treespH >= treesIterated - 20 & (gbmMODExpanded$test.error[treesIterated] - gbmMODExpanded$test.error[treesIterated - 100] > threshold){
-  # do another 5000 iterations  
-  gbmMODExpanded <- gbm.more(gbmMODExpanded, max(gbmGrid$.n.trees),
-                             data = train[randomSubset , c(seq(2, 3595), 3598)],
-                             verbose = TRUE)
-  treespH <- gbm.perf(gbmMODExpanded, method = 'test')
-  treesIterated <- treesIterated + max(gbmGrid$.n.trees)
-  
-  if(treesIterated >= 15000){break}  
-}
 #---------------------------------------------------------------
 #Hiper parameter 5-fold Cross-validation "SOC"
 set.seed(1008)
@@ -250,21 +210,7 @@ gbmMODSOC <- train(form = SOC ~ .,
 ggplot(gbmMODSOC)  + theme(legend.position = "top")
 
 #Find optimal number of trees
-threshold <- 0.001
-treesSOC <- gbm.perf(gbmMODSOC$finalModel, method = 'test')
-treesIterated <- max(gbmGrid$.n.trees)
-gbmMODExpanded <- gbmMODSOC$finalModel
-
-while(treesSOC >= treesIterated - 20 & (gbmMODExpanded$test.error[treesIterated] - gbmMODExpanded$test.error[treesIterated - 100] > threshold){
-  # do another 5000 iterations  
-  gbmMODExpanded <- gbm.more(gbmMODExpanded, max(gbmGrid$.n.trees),
-                             data = train[randomSubset , c(seq(2, 3595), 3599)],
-                             verbose = TRUE)
-  treesSOC <- gbm.perf(gbmMODExpanded, method = 'test')
-  treesIterated <- treesIterated + max(gbmGrid$.n.trees)
-  
-  if(treesIterated >= 15000){break}  
-}
+treesSOC <- treeFinder(gbmMODSOC$finalModel, dataNew = train[randomSubset , c(seq(2, 3595), 3599)])
 
 #---------------------------------------------------------------
 #Hiper parameter 5-fold Cross-validation "Sand"
@@ -283,21 +229,8 @@ gbmMODSand <- train(form = Sand ~ .,
 ggplot(gbmMODSand)  + theme(legend.position = "top")
 
 #Find optimal number of trees
-threshold <- 0.001
-treesSand <- gbm.perf(gbmMODSand$finalModel, method = 'test')
-treesIterated <- max(gbmGrid$.n.trees)
-gbmMODExpanded <- gbmMODSand$finalModel
+treesSand <- treeFinder(gbmMODSand$finalModel, dataNew = train[randomSubset , c(seq(2, 3595), 3600)])
 
-while(treesSand >= treesIterated - 20 & (gbmMODExpanded$test.error[treesIterated] - gbmMODExpanded$test.error[treesIterated - 100] > threshold){
-  # do another 5000 iterations  
-  gbmMODExpanded <- gbm.more(gbmMODExpanded, max(gbmGrid$.n.trees),
-                             data = train[randomSubset , c(seq(2, 3595), 3600)],
-                             verbose = TRUE)
-  treesSand <- gbm.perf(gbmMODExpanded, method = 'test')
-  treesIterated <- treesIterated + max(gbmGrid$.n.trees)
-  
-  if(treesIterated >= 15000){break}  
-}
 
 #########################################################
 #Final Models using h2o GBMs 
