@@ -1,4 +1,4 @@
-treeFinder <- function(model, dataNew, maxTrees = 10000, threshold = 0.001){
+treeFinder <- function(model, dataNew, maxIt = 10000, threshold = 0.001){
   #External Libraries
   require('gbm')
   
@@ -15,9 +15,9 @@ treeFinder <- function(model, dataNew, maxTrees = 10000, threshold = 0.001){
     
     print(paste0('Run another', maxTrees, 'iterations'))
     
-    if(treesIterated >= maxTrees){break}  
-    return(trees)
+    if(treesIterated >= maxIt){break}    
   }
+  return(trees)
 }
 
 
