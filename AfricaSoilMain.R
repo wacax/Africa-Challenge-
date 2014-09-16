@@ -233,17 +233,23 @@ treesSand <- treeFinder(gbmMODSand$finalModel, dataNew = train[randomSubset , c(
 
 #########################################################
 #Final Models using h2o GBMs 
+#Make a Shuffled CSV to train h2o models
+set.seed(1010)
+randomSubset <- sample.int(nrow(train), nrow(train)) #full data
+trainShuffled <- train[randomSubset, ]
+write.csv(trainShuffled, file = paste0(dataDirectory, 'trainingShuffled.csv'), row.names = FALSE)
+
 #Create an h2o parsed data
 require('h2o')
 localH2O = h2o.init(ip = "localhost", port = 54321, startH2O = TRUE)
-africa.hex = h2o.importFile(localH2O, path = paste0(dataDirectory, 'training.csv'))
+africa.hex = h2o.importFile(localH2O, path = paste0(dataDirectory, 'trainingShuffled.csv'))
 
 GBMModelCa <- h2o.gbm(x = seq(2, 3595),
                       y = 'Ca',
                       data = africa.hex,
                       distribution = 'gaussian', 
-                      interaction.depth = gbmMODCa$bestTune[2],
-                      shrinkage = gbmMODCa$bestTune[3], 
+                      interaction.depth = as.numeric(gbmMODCa$bestTune[2]),
+                      shrinkage = as.numeric(gbmMODCa$bestTune[3]), 
                       n.trees = treesCa)
 plot(GBMModelCa)
 #----------------------------------------------------------------
@@ -251,8 +257,8 @@ GBMModelP <- h2o.gbm(x = seq(2, 3595),
                      y = 'P',
                      data = africa.hex,
                      distribution = 'gaussian', 
-                     interaction.depth = gbmMODP$bestTune[2],
-                     shrinkage = gbmMODP$bestTune[3], 
+                     interaction.depth =as.numeric(gbmMODP$bestTune[2]),
+                     shrinkage = as.numeric(gbmMODP$bestTune[3]), 
                      n.trees = treesP)
 plot(GBMModelP)
 #----------------------------------------------------------------
@@ -260,17 +266,17 @@ GBMModepH <- h2o.gbm(x = seq(2, 3595),
                      y = 'pH',
                      data = africa.hex,
                      distribution = 'gaussian', 
-                     interaction.depth = gbmMODpH$bestTune[2],
-                     shrinkage = gbmMODpH$bestTune[3], 
-                     n.trees = treespH)
+                     interaction.depth = as.numeric(gbmMODph$bestTune[2]),
+                     shrinkage = as.numeric(gbmMODph$bestTune[3]), 
+                     n.trees = treesph)
 plot(GBMModepH)
 #----------------------------------------------------------------
 GBMModeSOC <- h2o.gbm(x = seq(2, 3595),
                       y = 'SOC',
                       data = africa.hex,
                       distribution = 'gaussian', 
-                      interaction.depth = gbmMODSOC$bestTune[2],
-                      shrinkage = gbmMODSOC$bestTune[3], 
+                      interaction.depth = as.numeric(gbmMODSOC$bestTune[2]),
+                      shrinkage = as.numeric(gbmMODSOC$bestTune[3]), 
                       n.trees = treesSOC)
 plot(GBMModeSOC)
 #----------------------------------------------------------------
@@ -278,8 +284,8 @@ GBMModeSand <- h2o.gbm(x = seq(2, 3595),
                        y = 'Sand',
                        data = africa.hex,
                        distribution = 'gaussian', 
-                       interaction.depth = gbmMODSand$bestTune[2],
-                       shrinkage = gbmMODSandC$bestTune[3], 
+                       interaction.depth = as.numeric(gbmMODSand$bestTune[2]),
+                       shrinkage = as.numeric(gbmMODSand$bestTune[3]), 
                        n.trees = treesSand)
 plot(GBMModeSand)
 ##########################################################
