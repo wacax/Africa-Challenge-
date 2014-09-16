@@ -134,7 +134,7 @@ GBMControl <- trainControl(method = "cv",
                            number = 5,
                            verboseIter = TRUE)
 
-gbmGrid <- expand.grid(.interaction.depth = seq(1, 5, 2),
+gbmGrid <- expand.grid(.interaction.depth = seq(1, 7, 2),
                        .shrinkage = c(0.001, 0.003), 
                        .n.trees = 2000)
 
