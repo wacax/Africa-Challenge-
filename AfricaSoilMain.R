@@ -303,6 +303,38 @@ GBMPredictionSOC <- as.data.frame(h2o.predict(GBMModeSOC, newdata = africaTest.h
 #Sand
 GBMPredictionSand <- as.data.frame(h2o.predict(GBMModeSand, newdata = africaTest.hex))
 
+#########################################################
+#Deep Learning with H2O
+DeepNNModelCa <- h2o.deeplearning(x = seq(2, 3595),
+                                  y = 'Ca',
+                                  data = africa.hex,
+                                  classification = FALSE, activation = 'MaxoutDropout',
+                                  hidden = c(100, 100)
+#----------------------------------------------------------------
+DeepNNGBMModelP <- h2o.deeplearning(x = seq(2, 3595),
+                                    y = 'P',
+                                    data = africa.hex,
+                                    classification = FALSE, activation = 'MaxoutDropout',
+                                    hidden = c(100, 100)
+#----------------------------------------------------------------
+DeepNNGBMModepH <- h2o.deeplearning(x = seq(2, 3595),
+                                    y = 'pH',
+                                    data = africa.hex,
+                                    classification = FALSE, activation = 'MaxoutDropout',
+                                    hidden = c(100, 100)
+#----------------------------------------------------------------
+DeepNNGBMModeSOC <- h2o.deeplearning(x = seq(2, 3595),
+                                     y = 'SOC',
+                                     data = africa.hex,
+                                     classification = FALSE, activation = 'MaxoutDropout',
+                                     hidden = c(100, 100)
+#----------------------------------------------------------------
+DeepNNGBMModeSand <- h2o.deeplearning(x = seq(2, 3595),
+                                      y = 'Sand',
+                                      data = africa.hex,
+                                      classification = FALSE, activation = 'MaxoutDropout',
+                                      hidden = c(100, 100)
+
 #h2o shutdown WARNING, All data on the server will be lost!
 h2o.shutdown(localH2O, prompt = TRUE)
 
