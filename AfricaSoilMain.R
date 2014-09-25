@@ -48,7 +48,7 @@ trainShuffled <- train[randomSubset, ]
 write.csv(trainShuffled, file = paste0(dataDirectory, 'trainingShuffled.csv'), row.names = FALSE)
 
 #Test Data
-write.csv(trainShuffled, file = paste0(dataDirectory, 'testNumeric.csv'), row.names = FALSE)
+write.csv(test, file = paste0(dataDirectory, 'testNumeric.csv'), row.names = FALSE)
 
 ################################
 #EDA
