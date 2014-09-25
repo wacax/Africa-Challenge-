@@ -40,6 +40,16 @@ submissionTemplate <- read.csv(paste0(dataDirectory, 'sample_submission.csv'), h
 train <- transform(train, Depth = as.numeric(as.factor(train$Depth)) - 1)
 test <- transform(test, Depth = as.numeric(as.factor(test$Depth)) - 1)
 
+#Transform it to H2O compatible file
+#Make a Shuffled CSV to train h2o models
+set.seed(1010)
+randomSubset <- sample.int(nrow(train), nrow(train)) #full data
+trainShuffled <- train[randomSubset, ]
+write.csv(trainShuffled, file = paste0(dataDirectory, 'trainingShuffled.csv'), row.names = FALSE)
+
+#Test Data
+write.csv(trainShuffled, file = paste0(dataDirectory, 'testNumeric.csv'), row.names = FALSE)
+
 ################################
 #EDA
 #Rows containing NAs
@@ -135,7 +145,7 @@ GBMControl <- trainControl(method = "cv",
                            verboseIter = TRUE)
 
 gbmGrid <- expand.grid(.interaction.depth = seq(1, 7, 2),
-                       .shrinkage = c(0.001, 0.003), 
+                       .shrinkage = c(0.001, 0.003, 0.01), 
                        .n.trees = 2000)
 
 set.seed(1005)
@@ -233,11 +243,6 @@ treesSand <- treeFinder(gbmMODSand$finalModel, dataNew = train[randomSubset , c(
 
 #########################################################
 #Final Models using h2o GBMs 
-#Make a Shuffled CSV to train h2o models
-set.seed(1010)
-randomSubset <- sample.int(nrow(train), nrow(train)) #full data
-trainShuffled <- train[randomSubset, ]
-write.csv(trainShuffled, file = paste0(dataDirectory, 'trainingShuffled.csv'), row.names = FALSE)
 
 #Create an h2o parsed data
 require('h2o')
@@ -291,7 +296,7 @@ plot(GBMModeSand)
 ##########################################################
 #PREDICTIONS
 #GBM
-africaTest.hex = h2o.importFile(localH2O, path = paste0(dataDirectory, 'sorted_test.csv'))
+africaTest.hex = h2o.importFile(localH2O, path = paste0(dataDirectory, 'testNumeric.csv'))
 #Ca
 GBMPredictionCa <- as.data.frame(h2o.predict(GBMModelCa, newdata = africaTest.hex))
 #P
