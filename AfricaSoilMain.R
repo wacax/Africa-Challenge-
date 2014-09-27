@@ -245,7 +245,7 @@ treesSand <- treeFinder(gbmMODSand$finalModel, dataNew = train[randomSubset , c(
 #Final Models using h2o GBMs 
 #Create an h2o parsed data
 require('h2o')
-localH2O = h2o.init(ip = "localhost", port = 54321, startH2O = TRUE)
+localH2O = h2o.init(ip = "localhost", port = 54321, Xmx = '4g', startH2O = TRUE)
 africa.hex = h2o.importFile(localH2O, path = paste0(dataDirectory, 'trainingShuffled.csv'))
 
 #data frames as h2o / not necesary h2o is reading directly from .csv files
@@ -313,48 +313,89 @@ GBMPredictionSand <- as.data.frame(h2o.predict(GBMModeSand, newdata = africaTest
 
 #########################################################
 #Deep Learning with H2O
+#Simple Validation (80/20 data split)
+africaHexTrain <- africa.hex[1:floor(dim(africa.hex)[1] * 0.6), ]
+africaHexValid <- africa.hex[floor(dim(africa.hex)[1] * 0.6) + 1:dim(africa.hex)[1], ]
+
+#run 10 epochs 
+#Run the grid search
+gridSearch1st <- h2o.deeplearning(x = seq(2, 3595),
+                                  y = 'Ca',
+                                  data = africaHexTrain,
+                                  validation = africaHexValid,
+                                  classification = FALSE, balance_classes = FALSE, 
+                                  activation = 'RectifierWithDropout',
+                                  hidden = c(20, 20),
+                                  hidden_dropout_ratios = c(0.1, 0.1),
+                                  epochs = 5)
+gridSearch1st <- h2o.deeplearning(x = seq(2, 3595),
+                                  y = 'Ca',
+                                  data = africaHexTrain,
+                                  validation = africaHexValid,
+                                  classification = FALSE, balance_classes = FALSE, 
+                                  activation = 'TanhWithDropout',
+                                  hidden = c(20, 20),
+                                  hidden_dropout_ratios = c(0.1, 0.1),
+                                  epochs = 5)
+#Create a set of network topologies
+hidden_layers = list(c(200,200), c(100,300,100),c(500,500,500))
+
+#--------------------------------------------------
 DeepNNModelCa <- h2o.deeplearning(x = seq(2, 3595),
                                   y = 'Ca',
                                   data = africa.hex,
-                                  classification = FALSE, activation = 'MaxoutDropout',
-                                  hidden = c(100, 100)
+                                  classification = FALSE, balance_classes = FALSE, 
+                                  activation = 'MaxoutWithDropout',
+                                  hidden = c(100, 100),
+                                  hidden_dropout_ratios = c(0.5,0.5),
+                                  epochs = 100)
 #----------------------------------------------------------------
 DeepNNGBMModelP <- h2o.deeplearning(x = seq(2, 3595),
                                     y = 'P',
                                     data = africa.hex,
-                                    classification = FALSE, activation = 'MaxoutDropout',
-                                    hidden = c(100, 100)
+                                    classification = FALSE, balance_classes = FALSE, 
+                                    activation = 'MaxoutWithDropout',
+                                    hidden = c(100, 100),
+                                    hidden_dropout_ratios = c(0.5,0.5,0.5),
+                                    epochs = 100)
 #----------------------------------------------------------------
 DeepNNGBMModepH <- h2o.deeplearning(x = seq(2, 3595),
                                     y = 'pH',
                                     data = africa.hex,
-                                    classification = FALSE, activation = 'MaxoutDropout',
-                                    hidden = c(100, 100)
+                                    classification = FALSE, balance_classes = FALSE, 
+                                    activation = 'MaxoutWithDropout',
+                                    hidden = c(100, 100),
+                                    hidden_dropout_ratios = c(0.5,0.5,0.5),
+                                    epochs = 100)
 #----------------------------------------------------------------
 DeepNNGBMModeSOC <- h2o.deeplearning(x = seq(2, 3595),
                                      y = 'SOC',
                                      data = africa.hex,
-                                     classification = FALSE, activation = 'MaxoutDropout',
-                                     hidden = c(100, 100)
+                                     classification = FALSE, balance_classes = FALSE, 
+                                     activation = 'MaxoutWithDropout',
+                                     hidden = c(100, 100),
+                                     hidden_dropout_ratios = c(0.5,0.5,0.5),
+                                     epochs = 100)
 #----------------------------------------------------------------
 DeepNNGBMModeSand <- h2o.deeplearning(x = seq(2, 3595),
                                       y = 'Sand',
                                       data = africa.hex,
-                                      classification = FALSE, activation = 'MaxoutDropout',
-                                      hidden = c(100, 100)
+                                      classification = FALSE, balance_classes = FALSE, 
+                                      activation = 'MaxoutWithDropout',
+                                      hidden = c(100, 100),
+                                      hidden_dropout_ratios = c(0.5,0.5,0.5),
+                                      epochs = 100)
 
 #h2o shutdown WARNING, All data on the server will be lost!
 h2o.shutdown(localH2O, prompt = TRUE)
 
 #########################################################
 #Write .csv 
-names(GBMPredictionCa) <- 'Ca'; names(GBMPredictionP) <- 'P'; names(GBMPredictionpH) <- 'pH'; 
-names(GBMPredictionSOC) <- 'SOC'; names(GBMPredictionSand) <- 'Sand'; 
-submissionTemplate$Ca <- GBMPredictionCa
-submissionTemplate$P <- GBMPredictionP
-submissionTemplate$pH <- GBMPredictionpH
-submissionTemplate$SOC <- GBMPredictionSOC
-submissionTemplate$Sand <- GBMPredictionSand
+submissionTemplate$Ca <- unlist(GBMPredictionCa)
+submissionTemplate$P <- unlist(GBMPredictionP)
+submissionTemplate$pH <- unlist(GBMPredictionpH)
+submissionTemplate$SOC <- unlist(GBMPredictionSOC)
+submissionTemplate$Sand <- unlist(GBMPredictionSand)
 write.csv(submissionTemplate, file = "PredictionI.csv", row.names = FALSE)
 
 
