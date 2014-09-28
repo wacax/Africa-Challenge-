@@ -313,32 +313,6 @@ GBMPredictionSand <- as.data.frame(h2o.predict(GBMModeSand, newdata = africaTest
 
 #########################################################
 #Deep Learning with H2O
-#Simple Validation (80/20 data split)
-africaHexTrain <- africa.hex[1:floor(dim(africa.hex)[1] * 0.6), ]
-africaHexValid <- africa.hex[floor(dim(africa.hex)[1] * 0.6) + 1:dim(africa.hex)[1], ]
-
-#run 10 epochs 
-#Run the grid search
-gridSearch1st <- h2o.deeplearning(x = seq(2, 3595),
-                                  y = 'Ca',
-                                  data = africaHexTrain,
-                                  validation = africaHexValid,
-                                  classification = FALSE, balance_classes = FALSE, 
-                                  activation = 'RectifierWithDropout',
-                                  hidden = c(20, 20),
-                                  hidden_dropout_ratios = c(0.1, 0.1),
-                                  epochs = 5)
-gridSearch1st <- h2o.deeplearning(x = seq(2, 3595),
-                                  y = 'Ca',
-                                  data = africaHexTrain,
-                                  validation = africaHexValid,
-                                  classification = FALSE, balance_classes = FALSE, 
-                                  activation = 'TanhWithDropout',
-                                  hidden = c(20, 20),
-                                  hidden_dropout_ratios = c(0.1, 0.1),
-                                  epochs = 5)
-#Create a set of network topologies
-hidden_layers = list(c(200,200), c(100,300,100),c(500,500,500))
 
 #--------------------------------------------------
 DeepNNModelCa <- h2o.deeplearning(x = seq(2, 3595),
