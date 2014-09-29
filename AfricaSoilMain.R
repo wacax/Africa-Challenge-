@@ -313,7 +313,7 @@ GBMPredictionSand <- as.data.frame(h2o.predict(GBMModeSand, newdata = africaTest
 
 #########################################################
 #Deep Learning with H2O
-
+hyperParameters <- gridCrossValidationh2oDeepnets(africa.hex)
 #--------------------------------------------------
 DeepNNModelCa <- h2o.deeplearning(x = seq(2, 3595),
                                   y = 'Ca',

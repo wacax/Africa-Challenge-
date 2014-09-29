@@ -9,62 +9,87 @@ gridCrossValidationh2oDeepnets <- function(H2OParsedDataObject, noOfEpochs = 5){
   
   #Cols to predict
   predCol <- c('Ca', 'P', 'pH', 'SOC', 'Sand')
-  activations <- c('RectifierWithDropout', 'TanhWithDropout', 'MaxoutWithDropout')
+  activations <- c('RectifierWithDropout', 'TanhWithDropout', 'MaxoutWithDropout', 
+                   'Rectifier', 'Tanh', 'Maxout')
   targetsVal <- cbind(as.data.frame(HexValid$Ca), as.data.frame(HexValid$P), as.data.frame(HexValid$pH), 
                       as.data.frame(HexValid$SOC), as.data.frame(HexValid$Sand))
   
-  optimalActivations <- sapply(predCol, function(target){
-    
-    activationsErrors <- sapply(activations, function(actvs, tar){      
-      
+  noDropout <- c('Rectifier', 'Tanh', 'Maxout')
+  
+  optimalActivations <- sapply(predCol, function(target){    
+    activationsErrors <- sapply(activations, function(actvs){      
       model <- h2o.deeplearning(x = seq(2, 3595),
                                 y = target,
                                 data = HexTrain,
                                 classification = FALSE, balance_classes = FALSE, 
                                 activation = actvs,
                                 hidden = c(20, 20),
-                                hidden_dropout_ratios = c(0.5, 0.5),
-                                epochs = noOfEpochs)  
+                                input_dropout_ratio = ifelse(actvs %in% noDropout, 0, 0.1),
+                                l2 = ifelse(actvs == 'Rectifier' | actvs == 'Tanh', 1e-5, 0),
+                                epochs = noOfEpochs, force_load_balance = TRUE)  
       
       Prediction <- unlist(as.data.frame(h2o.predict(model, newdata = HexValid)))
-      RMSEError <- rmse(targetsVal[ , i], Prediction)
+      RMSEError <- rmse(targetsVal[target], Prediction)
+      print(paste0(target, ' RMSE Error of ', RMSEError, ' with activation: ', actvs))
       return(RMSEError)    
-    }, target)
-    
-    return(names(which.min(activationsErrors)))
-    
+    })    
+    return(names(which.min(activationsErrors)))    
   })
   
-  
-  
-  for (i in 1:length(predCol)){
-    #run 5 epochs 
-    gridSearchRWD <- h2o.deeplearning(x = seq(2, 3595),
-                                      y = predCol[i],
-                                      data = africaHexTrain,
-                                      validation = africaHexValid,
-                                      classification = FALSE, balance_classes = FALSE, 
-                                      activation = 'RectifierWithDropout',
-                                      hidden = c(20, 20),
-                                      hidden_dropout_ratios = c(0.1, 0.1),
-                                      epochs = noOfEpochs)
-    gridSearchTWD <- h2o.deeplearning(x = seq(2, 3595),
-                                      y = predCol[i],
-                                      data = africaHexTrain,
-                                      validation = africaHexValid,
-                                      classification = FALSE, balance_classes = FALSE, 
-                                      activation = 'TanhWithDropout',
-                                      hidden = c(20, 20),
-                                      hidden_dropout_ratios = c(0.1, 0.1),
-                                      epochs = noOfEpochs)  
-    #Run the grid search
-    
-  }
-  
   #Create a set of network topologies
-  hidden_layers = list(c(200,200), c(100,300,100),c(500,500,500))
+  hidden_layers = list(c(50, 50), c(50, 50), c(50, 50, 50), c(50, 100, 50), c(50, 50, 50, 50))
   
+  optimalParameters <- cbind(predCol, optimalActivations)
   
-
+  optimalArchitecture <- apply(optimalParameters, 1, function(parameters){
+    activationsErrors <- lapply(hidden_layers, function(architecture){       
+      model <- h2o.deeplearning(x = seq(2, 3595),
+                                y = parameters[1],
+                                data = HexTrain,
+                                classification = FALSE, balance_classes = FALSE, 
+                                activation = parameters[2],
+                                hidden = architecture,
+                                input_dropout_ratio = ifelse(parameters[2] %in% noDropout, 0, 0.1),
+                                l2 = ifelse(parameters[2] == 'Rectifier' | parameters[2] == 'Tanh', 1e-5, 0),
+                                epochs = noOfEpochs * 2, force_load_balance = TRUE)  
+      
+      Prediction <- unlist(as.data.frame(h2o.predict(model, newdata = HexValid)))
+      RMSEError <- rmse(targetsVal[parameters[1]], Prediction)
+      print(paste0(parameters[1], ' RMSE Error of ', RMSEError, ' with activation: ', parameters[2], 
+                   ' and ', length(architecture), ' hidden layers of ', architecture, ' units each'))
+      return(RMSEError)  
+    })    
+    return(which.min(unlist(activationsErrors)))    
+  })
+  
+  optimalParameters <- cbind(optimalParameters, optimalArchitecture)
+  return(optimalParameters)
+  
+  #ADADELTA
+  adaRhos <- c(0.9, 0.95, 0.99)
+  optimalAdadelta <- apply(optimalParameters, 1, function(parameters){
+    activationsErrors <- sapply(adaRhos, function(rho){      
+      model <- h2o.deeplearning(x = seq(2, 3595),
+                                y = parameters[1],
+                                data = HexTrain,
+                                classification = FALSE, balance_classes = FALSE, 
+                                activation = parameters[2],
+                                hidden = hidden_layers[[as.numeric(parameters[3])]],
+                                adaptive_rate = TRUE,
+                                rho = rho,
+                                input_dropout_ratio = ifelse(parameters[2] %in% noDropout, 0, 0.1),
+                                l2 = ifelse(parameters[2] == 'Rectifier' | parameters[2] == 'Tanh', 1e-5, 0),
+                                epochs = noOfEpochs * 2, force_load_balance = TRUE)  
+      
+      Prediction <- unlist(as.data.frame(h2o.predict(model, newdata = HexValid)))
+      RMSEError <- rmse(targetsVal[parameters[1]], Prediction)
+      print(paste0(parameters[1], ' RMSE Error of ', RMSEError, ' with activation: ', parameters[2], 
+                   ' and ', length(hidden_layers[[as.numeric(parameters[3])]]), ' hidden layers of ',
+                   hidden_layers[[as.numeric(parameters[3])]], ' units each. Adadelta rho of ', rho))
+      return(RMSEError)
+    })
+      
+    
+  })
   
 }
