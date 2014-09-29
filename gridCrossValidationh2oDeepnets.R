@@ -1,4 +1,4 @@
-gridCrossValidationh2oDeepnets <- function(H2OParsedDataObject, noOfEpochs = 5){
+gridCrossValidationh2oDeepnets <- function(H2OParsedDataObject, noOfEpochs = 5, printScore = TRUE){
   
   require('Metrics')
   
@@ -67,7 +67,7 @@ gridCrossValidationh2oDeepnets <- function(H2OParsedDataObject, noOfEpochs = 5){
   
   #ADADELTA
   adaRhos <- c(0.9, 0.95, 0.99)
-  optimalAdadelta <- apply(optimalParameters, 1, function(parameters){
+  optimalAdaRhos <- apply(optimalParameters, 1, function(parameters){
     activationsErrors <- sapply(adaRhos, function(rho){      
       model <- h2o.deeplearning(x = seq(2, 3595),
                                 y = parameters[1],
@@ -77,6 +77,7 @@ gridCrossValidationh2oDeepnets <- function(H2OParsedDataObject, noOfEpochs = 5){
                                 hidden = hidden_layers[[as.numeric(parameters[3])]],
                                 adaptive_rate = TRUE,
                                 rho = rho,
+                                epsilon = 1e-10,
                                 input_dropout_ratio = ifelse(parameters[2] %in% noDropout, 0, 0.1),
                                 l2 = ifelse(parameters[2] == 'Rectifier' | parameters[2] == 'Tanh', 1e-5, 0),
                                 epochs = noOfEpochs * 2, force_load_balance = TRUE)  
@@ -87,9 +88,36 @@ gridCrossValidationh2oDeepnets <- function(H2OParsedDataObject, noOfEpochs = 5){
                    ' and ', length(hidden_layers[[as.numeric(parameters[3])]]), ' hidden layers of ',
                    hidden_layers[[as.numeric(parameters[3])]], ' units each. Adadelta rho of ', rho))
       return(RMSEError)
-    })
-      
-    
+    })    
+    return(which.min(activationsErrors))    
   })
   
+  optimalParameters <- cbind(optimalParameters, optimalAdaRhos)
+  
+  if(printScore == TRUE){
+    RMSEs <- apply(optimalParameters, 1, function(parameters){
+      model <- h2o.deeplearning(x = seq(2, 3595),
+                                y = parameters[1],
+                                data = HexTrain,
+                                classification = FALSE, balance_classes = FALSE, 
+                                activation = parameters[2],
+                                hidden = hidden_layers[[as.numeric(parameters[3])]],
+                                adaptive_rate = TRUE,
+                                rho = adaRhos[[as.numeric(parameters[4])]],
+                                epsilon = 1e-10,
+                                input_dropout_ratio = ifelse(parameters[2] %in% noDropout, 0, 0.1),
+                                l2 = ifelse(parameters[2] == 'Rectifier' | parameters[2] == 'Tanh', 1e-5, 0),
+                                epochs = noOfEpochs * 2, force_load_balance = TRUE)  
+      
+      Prediction <- unlist(as.data.frame(h2o.predict(model, newdata = HexValid)))
+      RMSEError <- rmse(targetsVal[parameters[1]], Prediction)
+      print(paste0(parameters[1], ' RMSE Error of ', RMSEError, ' with activation: ', parameters[2], 
+                   ' and ', length(hidden_layers[[as.numeric(parameters[3])]]), ' hidden layers of ',
+                   hidden_layers[[as.numeric(parameters[3])]], ' units each. Adadelta rho of ', rho))
+      return(RMSEError)
+    })  
+    print(paste0('MERMSE Score of: ', mean(RMSEs)))
+  }
+  
+  return(optimalParameters)
 }
