@@ -1,5 +1,5 @@
 #Liberty Mutual Group - Fire Peril Loss Cost
-#ver 0.1
+#ver 1.1
 
 #########################
 #Init
@@ -45,6 +45,7 @@ test <- transform(test, Depth = as.numeric(as.factor(test$Depth)) - 1)
 set.seed(1010)
 randomSubset <- sample.int(nrow(train), nrow(train)) #full data
 trainShuffled <- train[randomSubset, ]
+trainShuffled$P <- log(trainShuffled$P + 2)
 write.csv(trainShuffled, file = paste0(dataDirectory, 'trainingShuffled.csv'), row.names = FALSE)
 
 #Test Data
@@ -139,15 +140,16 @@ treeBagPredictorsSand <- predictors(treeBagProfile)
 ##########################################################
 #MODELLING
 #GBM
-#Hiper parameter 5-fold Cross-validation "Ca"
+#Cross Validation Control Params
 GBMControl <- trainControl(method = "cv",
                            number = 5,
                            verboseIter = TRUE)
 
-gbmGrid <- expand.grid(.interaction.depth = seq(1, 7, 2),
+gbmGrid <- expand.grid(.interaction.depth = c(3, 5),
                        .shrinkage = c(0.001, 0.003, 0.01), 
                        .n.trees = 2000)
 
+#Hiper parameter 5-fold Cross-validation "Ca"
 set.seed(1005)
 randomSubset <- sample.int(nrow(train), nrow(train)) #full data
 gbmMODCa <- train(form = Ca~., 
@@ -169,7 +171,7 @@ treesCa <- treeFinder(gbmMODCa$finalModel, dataNew = train[randomSubset , seq(2,
 #Hiper parameter 5-fold Cross-validation "P"
 set.seed(1006)
 randomSubset <- sample.int(nrow(train), nrow(train)) #full data
-gbmMODP <- train(form = P ~ ., 
+gbmMODP <- train(form = log(P + 2) ~ ., 
                  data = train[randomSubset , c(seq(2, 3595), 3597)],
                  method = "gbm",
                  tuneGrid = gbmGrid,
@@ -298,7 +300,6 @@ GBMModeSand <- h2o.gbm(x = seq(2, 3595),
 plot(GBMModeSand)
 ##########################################################
 #PREDICTIONS
-#GBM
 africaTest.hex = h2o.importFile(localH2O, path = paste0(dataDirectory, 'testNumeric.csv'))
 #Ca
 GBMPredictionCa <- as.data.frame(h2o.predict(GBMModelCa, newdata = africaTest.hex))
@@ -313,7 +314,8 @@ GBMPredictionSand <- as.data.frame(h2o.predict(GBMModeSand, newdata = africaTest
 
 #########################################################
 #Deep Learning with H2O
-hyperParameters <- gridCrossValidationh2oDeepnets(africa.hex)
+hyperParameters <- gridCrossValidationh2oDeepnets(africa.hex, noOfEpochs = 10)
+
 #--------------------------------------------------
 DeepNNModelCa <- h2o.deeplearning(x = seq(2, 3595),
                                   y = 'Ca',
@@ -360,16 +362,37 @@ DeepNNGBMModeSand <- h2o.deeplearning(x = seq(2, 3595),
                                       hidden_dropout_ratios = c(0.5,0.5,0.5),
                                       epochs = 100)
 
+##########################################################
+#PREDICTIONS
+africaTest.hex = h2o.importFile(localH2O, path = paste0(dataDirectory, 'testNumeric.csv'))
+#Ca
+NNPredictionCa <- as.data.frame(h2o.predict(DeepNNModelCa, newdata = africaTest.hex))
+#P
+NNPredictionP <- as.data.frame(h2o.predict(DeepNNGBMModelP, newdata = africaTest.hex))
+#pH
+NNPredictionpH <- as.data.frame(h2o.predict(GBMPredictionpH, newdata = africaTest.hex))
+#SOC
+NNPredictionSOC <- as.data.frame(h2o.predict(DeepNNGBMModeSOC, newdata = africaTest.hex))
+#Sand
+NNPredictionSand <- as.data.frame(h2o.predict(DeepNNGBMModeSand, newdata = africaTest.hex))
+
+#########################################################
 #h2o shutdown WARNING, All data on the server will be lost!
 h2o.shutdown(localH2O, prompt = TRUE)
 
 #########################################################
 #Write .csv 
+#GBM
 submissionTemplate$Ca <- unlist(GBMPredictionCa)
-submissionTemplate$P <- unlist(GBMPredictionP)
+submissionTemplate$P <- exp(unlist(GBMPredictionP)) - 2
 submissionTemplate$pH <- unlist(GBMPredictionpH)
 submissionTemplate$SOC <- unlist(GBMPredictionSOC)
 submissionTemplate$Sand <- unlist(GBMPredictionSand)
-write.csv(submissionTemplate, file = "PredictionI.csv", row.names = FALSE)
-
-
+write.csv(submissionTemplate, file = "PredictionII.csv", row.names = FALSE)
+#Deep NN
+submissionTemplate$Ca <- unlist(NNPredictionCa)
+submissionTemplate$P <- exp(unlist(NNPredictionP)) - 2
+submissionTemplate$pH <- unlist(NNPredictionpH)
+submissionTemplate$SOC <- unlist(NNPredictionSOC)
+submissionTemplate$Sand <- unlist(NNPredictionSand)
+write.csv(submissionTemplate, file = "PredictionIII.csv", row.names = FALSE)
