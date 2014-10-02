@@ -304,7 +304,7 @@ africaTest.hex = h2o.importFile(localH2O, path = paste0(dataDirectory, 'testNume
 #Ca
 GBMPredictionCa <- as.data.frame(h2o.predict(GBMModelCa, newdata = africaTest.hex))
 #P
-GBMPredictionP <- as.data.frame(h2o.predict(GBMModelP, newdata = africaTest.hex))
+GBMPredictionP <- exp(as.data.frame(h2o.predict(GBMModelP, newdata = africaTest.hex))) - 2
 #pH
 GBMPredictionpH <- as.data.frame(h2o.predict(GBMModepH, newdata = africaTest.hex))
 #SOC
@@ -316,51 +316,76 @@ GBMPredictionSand <- as.data.frame(h2o.predict(GBMModeSand, newdata = africaTest
 #Deep Learning with H2O
 hyperParameters <- gridCrossValidationh2oDeepnets(africa.hex, noOfEpochs = 10)
 
+noDropout <- c('Rectifier', 'Tanh', 'Maxout')
+hidden_layers = list(c(50, 50), c(100, 100), c(50, 50, 50), c(100, 100, 100))
+gridAda <- expand.grid(c(0.9, 0.95, 0.99), c(1e-15, 1e-12, 1e-10, 1e-8, 1e-6), stringsAsFactors = TRUE) #this creates all possible combinations
+
 #--------------------------------------------------
 DeepNNModelCa <- h2o.deeplearning(x = seq(2, 3595),
-                                  y = 'Ca',
+                                  y = hyperParameters[1],
                                   data = africa.hex,
                                   classification = FALSE, balance_classes = FALSE, 
-                                  activation = 'MaxoutWithDropout',
-                                  hidden = c(100, 100),
-                                  hidden_dropout_ratios = c(0.5,0.5),
-                                  epochs = 100)
+                                  activation = hyperParameters[1, 2],
+                                  hidden = hidden_layers[[as.numeric(hyperParameters[1, 3])]],
+                                  adaptive_rate = TRUE,
+                                  rho = gridAda[as.numeric(hyperParameters[1, 4]), 1],
+                                  epsilon = gridAda[as.numeric(hyperParameters[1, 4]), 2],
+                                  input_dropout_ratio = ifelse(hyperParameters[1, 2] %in% noDropout, 0, 0.1),
+                                  l2 = ifelse(hyperParameters[1, 2] == 'Rectifier' | hyperParameters[1, 2] == 'Tanh', 1e-5, 0),
+                                  epochs = 100, force_load_balance = TRUE)
+
 #----------------------------------------------------------------
 DeepNNGBMModelP <- h2o.deeplearning(x = seq(2, 3595),
-                                    y = 'P',
+                                    y = hyperParameters[2],
                                     data = africa.hex,
                                     classification = FALSE, balance_classes = FALSE, 
-                                    activation = 'MaxoutWithDropout',
-                                    hidden = c(100, 100),
-                                    hidden_dropout_ratios = c(0.5,0.5,0.5),
-                                    epochs = 100)
+                                    activation = hyperParameters[2, 2],
+                                    hidden = hidden_layers[[as.numeric(hyperParameters[2, 3])]],
+                                    adaptive_rate = TRUE,
+                                    rho = gridAda[as.numeric(hyperParameters[2, 4]), 1],
+                                    epsilon = gridAda[as.numeric(hyperParameters[2, 4]), 2],
+                                    input_dropout_ratio = ifelse(hyperParameters[2, 2] %in% noDropout, 0, 0.1),
+                                    l2 = ifelse(hyperParameters[2, 2] == 'Rectifier' | hyperParameters[2, 2] == 'Tanh', 1e-5, 0),
+                                    epochs = 100, force_load_balance = TRUE)
 #----------------------------------------------------------------
 DeepNNGBMModepH <- h2o.deeplearning(x = seq(2, 3595),
-                                    y = 'pH',
+                                    y = hyperParameters[3],
                                     data = africa.hex,
                                     classification = FALSE, balance_classes = FALSE, 
-                                    activation = 'MaxoutWithDropout',
-                                    hidden = c(100, 100),
-                                    hidden_dropout_ratios = c(0.5,0.5,0.5),
-                                    epochs = 100)
+                                    activation = hyperParameters[3, 2],
+                                    hidden = hidden_layers[[as.numeric(hyperParameters[3, 3])]],
+                                    adaptive_rate = TRUE,
+                                    rho = gridAda[as.numeric(hyperParameters[3, 4]), 1],
+                                    epsilon = gridAda[as.numeric(hyperParameters[3, 4]), 2],
+                                    input_dropout_ratio = ifelse(hyperParameters[3, 2] %in% noDropout, 0, 0.1),
+                                    l2 = ifelse(hyperParameters[3, 2] == 'Rectifier' | hyperParameters[3, 2] == 'Tanh', 1e-5, 0),
+                                    epochs = 100, force_load_balance = TRUE)
 #----------------------------------------------------------------
 DeepNNGBMModeSOC <- h2o.deeplearning(x = seq(2, 3595),
-                                     y = 'SOC',
+                                     y = hyperParameters[4],
                                      data = africa.hex,
                                      classification = FALSE, balance_classes = FALSE, 
-                                     activation = 'MaxoutWithDropout',
-                                     hidden = c(100, 100),
-                                     hidden_dropout_ratios = c(0.5,0.5,0.5),
-                                     epochs = 100)
+                                     activation = hyperParameters[4, 2],
+                                     hidden = hidden_layers[[as.numeric(hyperParameters[4, 3])]],
+                                     adaptive_rate = TRUE,
+                                     rho = gridAda[as.numeric(hyperParameters[4, 4]), 1],
+                                     epsilon = gridAda[as.numeric(hyperParameters[4, 4]), 2],
+                                     input_dropout_ratio = ifelse(hyperParameters[4, 2] %in% noDropout, 0, 0.1),
+                                     l2 = ifelse(hyperParameters[4, 2] == 'Rectifier' | hyperParameters[4, 2] == 'Tanh', 1e-5, 0),
+                                     epochs = 100, force_load_balance = TRUE)
 #----------------------------------------------------------------
 DeepNNGBMModeSand <- h2o.deeplearning(x = seq(2, 3595),
-                                      y = 'Sand',
+                                      y = hyperParameters[5],
                                       data = africa.hex,
                                       classification = FALSE, balance_classes = FALSE, 
-                                      activation = 'MaxoutWithDropout',
-                                      hidden = c(100, 100),
-                                      hidden_dropout_ratios = c(0.5,0.5,0.5),
-                                      epochs = 100)
+                                      activation = hyperParameters[5, 2],
+                                      hidden = hidden_layers[[as.numeric(hyperParameters[5, 3])]],
+                                      adaptive_rate = TRUE,
+                                      rho = gridAda[as.numeric(hyperParameters[5, 4]), 1],
+                                      epsilon = gridAda[as.numeric(hyperParameters[5, 4]), 2],
+                                      input_dropout_ratio = ifelse(hyperParameters[5, 2] %in% noDropout, 0, 0.1),
+                                      l2 = ifelse(hyperParameters[5, 2] == 'Rectifier' | hyperParameters[5, 2] == 'Tanh', 1e-5, 0),
+                                      epochs = 100, force_load_balance = TRUE)
 
 ##########################################################
 #PREDICTIONS
@@ -368,7 +393,7 @@ africaTest.hex = h2o.importFile(localH2O, path = paste0(dataDirectory, 'testNume
 #Ca
 NNPredictionCa <- as.data.frame(h2o.predict(DeepNNModelCa, newdata = africaTest.hex))
 #P
-NNPredictionP <- as.data.frame(h2o.predict(DeepNNGBMModelP, newdata = africaTest.hex))
+NNPredictionP <- exp(as.data.frame(h2o.predict(DeepNNGBMModelP, newdata = africaTest.hex))) - 2
 #pH
 NNPredictionpH <- as.data.frame(h2o.predict(GBMPredictionpH, newdata = africaTest.hex))
 #SOC
