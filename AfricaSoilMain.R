@@ -346,9 +346,9 @@ hyperParametersAllSpectraDepth <- gridCrossValidationh2oDeepnets(africa.hex, pre
                                                                  noOfEpochs = 7)
 hyperParametersSpectraNoCO2Depth <- gridCrossValidationh2oDeepnets(africa.hex, predictorsCols = c(allSpectralDataNoCO2, depthIx),
                                                                    noOfEpochs = 7)
-hyperParametersAllData <- gridCrossValidationh2oDeepnets(africa.hex, predictorsCols = c(allSpectralData, depthIx, spatialPredictors),
+hyperParametersAllData <- gridCrossValidationh2oDeepnets(africa.hex, predictorsCols = c(allSpectralData, spatialPredictors, depthIx),
                                                          noOfEpochs = 7)
-hyperParametersAllDataNoCO2 <- gridCrossValidationh2oDeepnets(africa.hex, predictorsCols = c(allSpectralDataNoCO2, depthIx, spatialPredictors),
+hyperParametersAllDataNoCO2 <- gridCrossValidationh2oDeepnets(africa.hex, predictorsCols = c(allSpectralDataNoCO2, spatialPredictors, depthIx),
                                                               noOfEpochs = 7)
 
 noDropout <- c('Rectifier', 'Tanh', 'Maxout')
