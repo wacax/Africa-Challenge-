@@ -339,21 +339,22 @@ derpa <- icafast(trainMatrix, 200)
 
 #hyperparameter search
 hyperParametersAllSpectra <- gridCrossValidationh2oDeepnets(africa.hex, predictorsCols = allSpectralData,
-                                                            noOfEpochs = 10)
+                                                            noOfEpochs = 7)
 hyperParametersSpectraNoCO2 <- gridCrossValidationh2oDeepnets(africa.hex, predictorsCols = allSpectralDataNoCO2,
-                                                              noOfEpochs = 10)
+                                                              noOfEpochs = 7)
 hyperParametersAllSpectraDepth <- gridCrossValidationh2oDeepnets(africa.hex, predictorsCols = c(allSpectralData, depthIx), 
-                                                                 noOfEpochs = 10)
+                                                                 noOfEpochs = 7)
 hyperParametersSpectraNoCO2Depth <- gridCrossValidationh2oDeepnets(africa.hex, predictorsCols = c(allSpectralDataNoCO2, depthIx),
-                                                                   noOfEpochs = 10)
+                                                                   noOfEpochs = 7)
 hyperParametersAllData <- gridCrossValidationh2oDeepnets(africa.hex, predictorsCols = c(allSpectralData, depthIx, spatialPredictors),
-                                                         noOfEpochs = 10)
+                                                         noOfEpochs = 7)
 hyperParametersAllDataNoCO2 <- gridCrossValidationh2oDeepnets(africa.hex, predictorsCols = c(allSpectralDataNoCO2, depthIx, spatialPredictors),
-                                                              noOfEpochs = 10)
+                                                              noOfEpochs = 7)
 
 noDropout <- c('Rectifier', 'Tanh', 'Maxout')
 hidden_layers = list(c(50, 50), c(100, 100), c(50, 50, 50), c(100, 100, 100))
 gridAda <- expand.grid(c(0.9, 0.95, 0.99), c(1e-12, 1e-10, 1e-8, 1e-6), stringsAsFactors = TRUE) #this creates all possible combinations
+gridLs <- expand.grid(c(0, 1e-5, 1e-3), c(0, 1e-5, 1e-3), stringsAsFactors = TRUE) #this creates all possible combinations
 
 #--------------------------------------------------
 DeepNNModelCa <- h2o.deeplearning(x = seq(2, 3579),
