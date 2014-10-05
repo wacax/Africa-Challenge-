@@ -7,6 +7,8 @@ gridCrossValidationh2oDeepnets <- function(H2OParsedDataObject,
   #Use 80% of data and 20% of test scores
   Hex80 <- H2OParsedDataObject[1:floor(dim(H2OParsedDataObject)[1] * 0.8), ]
   HexTest <- H2OParsedDataObject[(floor(dim(H2OParsedDataObject)[1] * 0.8) + 1):floor(dim(H2OParsedDataObject)[1]), ]  
+  
+  #derp <- h2o.splitFrame(H2OParsedDataObject, ratios = 0.8, shuffle = TRUE)
     
   #Cols to predict
   predCol <- c('Ca', 'P', 'pH', 'SOC', 'Sand')
@@ -85,7 +87,10 @@ gridCrossValidationh2oDeepnets <- function(H2OParsedDataObject,
   
   optimalAdaParams <- apply(optimalParameters, 1, function(parameters){
     activationsErrors <- apply(gridAda, 1, function(adaDelta){ 
-      CVErrors <- sapply(1:nFolds, function(k){        
+      CVErrors <- sapply(1:nFolds, function(k){  
+        #n-fold x-validation      
+        set.seed(10101)
+        folds <- sample(rep(1:nFolds, length = nrow(Hex80)))
         model <- h2o.deeplearning(x = predictorsCols,
                                   y = parameters[1],
                                   data = Hex80[folds != k, ],
@@ -113,13 +118,18 @@ gridCrossValidationh2oDeepnets <- function(H2OParsedDataObject,
     return(which.min(activationsErrors))    
   })
   
+  optimalParameters <- cbind(optimalParameters, optimalAdaParams)  
+  
   #l1-l2 regularization
   #grid search
   gridLs <- expand.grid(c(0, 1e-5, 1e-3), c(0, 1e-5, 1e-3), stringsAsFactors = TRUE) #this creates all possible combinations
   
   optimalLParams <- apply(optimalParameters, 1, function(parameters){
     activationsErrors <- apply(gridLs, 1, function(L){ 
-      CVErrors <- sapply(1:nFolds, function(k){        
+      CVErrors <- sapply(1:nFolds, function(k){  
+        #n-fold x-validation      
+        set.seed(10101)
+        folds <- sample(rep(1:nFolds, length = nrow(Hex80)))
         model <- h2o.deeplearning(x = predictorsCols,
                                   y = parameters[1],
                                   data = Hex80[folds != k, ],
@@ -128,11 +138,11 @@ gridCrossValidationh2oDeepnets <- function(H2OParsedDataObject,
                                   activation = parameters[2],
                                   hidden = hidden_layers[[as.numeric(parameters[3])]],
                                   adaptive_rate = TRUE,
-                                  rho = as.numeric(adaDelta[1]),
-                                  epsilon = as.numeric(adaDelta[2]),
+                                  rho = gridAda[as.numeric(parameters[4]), 1],
+                                  epsilon = gridAda[as.numeric(parameters[4]), 2],
                                   input_dropout_ratio = ifelse(parameters[2] %in% noDropout, 0, 0.1),
-                                  l1 = as.numeric(gridLs[1]),
-                                  l2 = as.numeric(gridLs[2]),
+                                  l1 = as.numeric(L[1]),
+                                  l2 = as.numeric(L[2]),
                                   epochs = noOfEpochs * 2, force_load_balance = TRUE)  
         
         Prediction <- unlist(as.data.frame(h2o.predict(model, newdata = Hex80[folds == k, ])))
@@ -176,8 +186,11 @@ gridCrossValidationh2oDeepnets <- function(H2OParsedDataObject,
       }
       print(paste0(parameters[1], ' RMSE Error of ', RMSEError, ' with activation: ', parameters[2], 
                    ' and ', length(hidden_layers[[as.numeric(parameters[3])]]), ' hidden layers of ',
-                   hidden_layers[[as.numeric(parameters[3])]], ' units each. Adadelta rho of ', gridAda[as.numeric(parameters[4]), 1], 
-                   ' and Epsilon of: ', gridAda[as.numeric(parameters[4]), 2]))
+                   hidden_layers[[as.numeric(parameters[3])]], ' units each. Adadelta rho of ',
+                   gridAda[as.numeric(parameters[4]), 1], 
+                   ' and Epsilon of: ', gridAda[as.numeric(parameters[4]), 2],
+                   ' L1 Value of: ', as.numeric(gridLs[1]), 
+                   ' L2 Value of: ', as.numeric(gridLs[2])))
       return(RMSEError)
     })  
     print(paste0('MCRMSE Score of: ', mean(RMSEs)))

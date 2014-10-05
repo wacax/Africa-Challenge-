@@ -256,7 +256,7 @@ treesSand <- treeFinder(gbmMODSand$finalModel, dataNew = train[randomSubset , c(
 #Final Models using h2o GBMs 
 #Create an h2o parsed data
 require('h2o')
-localH2O = h2o.init(ip = "localhost", port = 54321, Xmx = '4g', startH2O = TRUE)
+localH2O = h2o.init(ip = "localhost", port = 54321, max_mem_size = '4g', startH2O = TRUE)
 africa.hex = h2o.importFile(localH2O, path = paste0(dataDirectory, 'trainingShuffled.csv'))
 
 #data frames as h2o / not necesary h2o is reading directly from .csv files
