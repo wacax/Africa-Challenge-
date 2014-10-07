@@ -4,7 +4,7 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
   
   require('h2o')
   require('Metrics')
-    
+  
   #Cols to predict
   predCol <- c('Ca', 'P', 'pH', 'SOC', 'Sand')
   activations <- c('RectifierWithDropout', 'TanhWithDropout', 'MaxoutWithDropout', 
@@ -20,7 +20,7 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
                      as.data.frame(splitObject[[1]]$SOC), as.data.frame(splitObject[[1]]$Sand))
   targetsTest <- cbind(as.data.frame(splitObject[[2]]$Ca), as.data.frame(splitObject[[2]]$P), as.data.frame(splitObject[[2]]$pH), 
                        as.data.frame(splitObject[[2]]$SOC), as.data.frame(splitObject[[2]]$Sand)) 
-    
+  
   optimalActivations <- sapply(predCol, function(target){    
     activationsErrors <- sapply(activations, function(actvs){       
       #n-fold x-validation      
@@ -51,7 +51,7 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
   
   #Update optimal activations
   optimalParameters <- cbind(predCol, optimalActivations)
-    
+  
   #Create a set of network topologies
   hidden_layers = list(c(50, 50), c(100, 100), c(50, 50, 50), c(100, 100, 100))
   
@@ -163,9 +163,9 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
       h2o.rm(object = localH2O, keys = h2o.ls(localH2O)$Key[1:(length(h2o.ls(localH2O)$Key) - 3)])
       print(paste0(parameters[1], ' RMSE Error of ', mean(CVErrors), ' with activation: ', parameters[2], 
                    ' and ', length(hidden_layers[[as.numeric(parameters[3])]]), ' hidden layers of ',
-                   hidden_layers[[as.numeric(parameters[3])]], ' units each. Adadelta rho of ', as.numeric(adaDelta[1]), 
-                   ' and Epsilon of: ', as.numeric(adaDelta[2]), ' L1 Value of: ', as.numeric(gridLs[1]), 
-                   ' L2 Value of: ', as.numeric(gridLs[2])))   
+                   hidden_layers[[as.numeric(parameters[3])]], ' units each. Adadelta rho of ',  gridAda[as.numeric(parameters[4]), 1], 
+                   ' and Epsilon of: ',  gridAda[as.numeric(parameters[4]), 2], ' L1 Value of: ', as.numeric(L[1]), 
+                   ' L2 Value of: ', as.numeric(L[2])))   
       return(mean(CVErrors))      
     })    
     return(which.min(activationsErrors))    
@@ -176,7 +176,7 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
   
   #Compute Combined Score  
   if(printScore == TRUE){
-      
+    
     RMSEs <- apply(optimalParameters, 1, function(parameters){      
       model <- h2o.deeplearning(x = predictorsCols,
                                 y = parameters[1],
@@ -204,8 +204,8 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
                    hidden_layers[[as.numeric(parameters[3])]], ' units each. Adadelta rho of ',
                    gridAda[as.numeric(parameters[4]), 1], 
                    ' and Epsilon of: ', gridAda[as.numeric(parameters[4]), 2],
-                   ' L1 Value of: ', as.numeric(gridLs[1]), 
-                   ' L2 Value of: ', as.numeric(gridLs[2])))
+                   ' L1 Value of: ', gridLs[as.numeric(parameters[5]), 1], 
+                   ' L2 Value of: ', gridLs[as.numeric(parameters[5]), 2]))
       return(RMSEError)
     })  
     print(paste0('MCRMSE Score of: ', mean(RMSEs)))
