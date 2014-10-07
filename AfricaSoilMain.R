@@ -257,7 +257,7 @@ treesSand <- treeFinder(gbmMODSand$finalModel, dataNew = train[randomSubset , c(
 #Final Models using h2o GBMs 
 #Create an h2o parsed data
 require('h2o')
-localH2O = h2o.init(ip = "localhost", port = 54421, max_mem_size = '4g', startH2O = TRUE)
+localH2O = h2o.init(ip = "localhost", port = 54321, max_mem_size = '4g', startH2O = TRUE)
 africa.hex = h2o.importFile(localH2O, path = paste0(dataDirectory, 'trainingShuffled.csv'))
 
 #data frames as h2o / not necesary h2o is reading directly from .csv files
@@ -323,7 +323,7 @@ GBMPredictionSOC <- as.data.frame(h2o.predict(GBMModeSOC, newdata = africaTest.h
 GBMPredictionSand <- as.data.frame(h2o.predict(GBMModeSand, newdata = africaTest.hex))
 #########################################################
 #h2o shutdown WARNING, All data on the server will be lost!
-h2o.shutdown(localH2O, prompt = TRUE)
+h2o.shutdown(localH2O, prompt = FALSE)
 
 #########################################################
 #Deep Learning with H2O
@@ -370,22 +370,22 @@ derpa <- icafast(trainMatrix, 200)
 #new hyperparameter search
 hyperParametersAllSpectra <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingShuffled.csv'),
                                                             predictorsCols = allSpectralData,
-                                                            noOfEpochs = 6, maxMem = '13g')
+                                                            noOfEpochs = 6, maxMem = '5g')
 hyperParametersSpectraNoCO2 <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingShuffled.csv'),
                                                               predictorsCols = allSpectralDataNoCO2,
-                                                              noOfEpochs = 6, maxMem = '13g')
+                                                              noOfEpochs = 6, maxMem = '5g')
 hyperParametersAllSpectraDepth <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingShuffled.csv'),
                                                                  predictorsCols = c(allSpectralData, depthIx), 
-                                                                 noOfEpochs = 6, maxMem = '13g')
+                                                                 noOfEpochs = 6, maxMem = '5g')
 hyperParametersSpectraNoCO2Depth <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingShuffled.csv'),
                                                                    predictorsCols = c(allSpectralDataNoCO2, depthIx),
-                                                                   noOfEpochs = 6, maxMem = '13g')
+                                                                   noOfEpochs = 6, maxMem = '5g')
 hyperParametersAllData <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingShuffled.csv'),
                                                          predictorsCols = c(allSpectralData, spatialPredictors, depthIx),
-                                                         noOfEpochs = 6, maxMem = '13g')
+                                                         noOfEpochs = 6, maxMem = '5g')
 hyperParametersAllDataNoCO2 <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingShuffled.csv'),
                                                               predictorsCols = c(allSpectralDataNoCO2, spatialPredictors, depthIx),
-                                                              noOfEpochs = 6, maxMem = '13g')
+                                                              noOfEpochs = 6, maxMem = '5g')
 
 noDropout <- c('Rectifier', 'Tanh', 'Maxout')
 hidden_layers = list(c(50, 50), c(100, 100), c(50, 50, 50), c(100, 100, 100))
