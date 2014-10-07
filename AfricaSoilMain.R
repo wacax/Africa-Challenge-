@@ -26,6 +26,7 @@ dataDirectory <- '/home/wacax/Wacax/Kaggle/Africa Tuesday/Data/'
 
 #Load external functions
 source(paste0(workingDirectory, 'treeFinder.R'))
+source(paste0(workingDirectory, 'gridCrossValidationh2oDeepnets.R'))
 
 #############################
 #Load Data
@@ -256,7 +257,7 @@ treesSand <- treeFinder(gbmMODSand$finalModel, dataNew = train[randomSubset , c(
 #Final Models using h2o GBMs 
 #Create an h2o parsed data
 require('h2o')
-localH2O = h2o.init(ip = "localhost", port = 54321, max_mem_size = '4g', startH2O = TRUE)
+localH2O = h2o.init(ip = "localhost", port = 54421, max_mem_size = '4g', startH2O = TRUE)
 africa.hex = h2o.importFile(localH2O, path = paste0(dataDirectory, 'trainingShuffled.csv'))
 
 #data frames as h2o / not necesary h2o is reading directly from .csv files
@@ -320,9 +321,18 @@ GBMPredictionpH <- as.data.frame(h2o.predict(GBMModepH, newdata = africaTest.hex
 GBMPredictionSOC <- as.data.frame(h2o.predict(GBMModeSOC, newdata = africaTest.hex))
 #Sand
 GBMPredictionSand <- as.data.frame(h2o.predict(GBMModeSand, newdata = africaTest.hex))
+#########################################################
+#h2o shutdown WARNING, All data on the server will be lost!
+h2o.shutdown(localH2O, prompt = TRUE)
 
 #########################################################
 #Deep Learning with H2O
+#Create an h2o parsed data
+require('h2o')
+localH2O = h2o.init(ip = "localhost", port = 54321, max_mem_size = '1g', startH2O = TRUE)
+africa.hex = h2o.importFile(localH2O, path = paste0(dataDirectory, 'trainingShuffled.csv'))
+
+##################################################################################
 CO2Signal <- seq(which(names(africa.hex) == 'm2379.76'), which(names(africa.hex) == 'm2352.76'))
 
 allSpectralData <- seq(2, 3579)
@@ -332,24 +342,50 @@ allSpectralDataNoCO2 <- c(seq(2, which(names(africa.hex) == 'm2379.76')),
 spatialPredictors <- seq(which(names(africa.hex) == 'BSAN'), which(names(africa.hex) == 'TMFI'))
 depthIx <- which(names(africa.hex) == 'Depth')
 
+#########################################################
+#h2o shutdown WARNING, All data on the server will be lost!
+h2o.shutdown(localH2O, prompt = FALSE)
+
+#########################################################
+
 #ICA
 trainMatrix <- model.matrix(~ . , data = train[ , allSpectralDataNoCO2]) 
 derp <- fastICA(trainMatrix, method = 'C', n.comp = 200, verbose = TRUE)
 derpa <- icafast(trainMatrix, 200)
 
 #hyperparameter search
-hyperParametersAllSpectra <- gridCrossValidationh2oDeepnets(africa.hex, predictorsCols = allSpectralData,
-                                                            noOfEpochs = 7)
-hyperParametersSpectraNoCO2 <- gridCrossValidationh2oDeepnets(africa.hex, predictorsCols = allSpectralDataNoCO2,
-                                                              noOfEpochs = 7)
-hyperParametersAllSpectraDepth <- gridCrossValidationh2oDeepnets(africa.hex, predictorsCols = c(allSpectralData, depthIx), 
-                                                                 noOfEpochs = 7)
-hyperParametersSpectraNoCO2Depth <- gridCrossValidationh2oDeepnets(africa.hex, predictorsCols = c(allSpectralDataNoCO2, depthIx),
-                                                                   noOfEpochs = 7)
-hyperParametersAllData <- gridCrossValidationh2oDeepnets(africa.hex, predictorsCols = c(allSpectralData, spatialPredictors, depthIx),
-                                                         noOfEpochs = 7)
-hyperParametersAllDataNoCO2 <- gridCrossValidationh2oDeepnets(africa.hex, predictorsCols = c(allSpectralDataNoCO2, spatialPredictors, depthIx),
-                                                              noOfEpochs = 7)
+#hyperParametersAllSpectra <- gridCrossValidationh2oDeepnets(africa.hex, predictorsCols = allSpectralData,
+#                                                            noOfEpochs = 7)
+#hyperParametersSpectraNoCO2 <- gridCrossValidationh2oDeepnets(africa.hex, predictorsCols = allSpectralDataNoCO2,
+#                                                              noOfEpochs = 7)
+#hyperParametersAllSpectraDepth <- gridCrossValidationh2oDeepnets(africa.hex, predictorsCols = c(allSpectralData, depthIx), 
+#                                                                 noOfEpochs = 7)
+#hyperParametersSpectraNoCO2Depth <- gridCrossValidationh2oDeepnets(africa.hex, predictorsCols = c(allSpectralDataNoCO2, depthIx),
+#                                                                   noOfEpochs = 7)
+#hyperParametersAllData <- gridCrossValidationh2oDeepnets(africa.hex, predictorsCols = c(allSpectralData, spatialPredictors, depthIx),
+#                                                         noOfEpochs = 7)
+#hyperParametersAllDataNoCO2 <- gridCrossValidationh2oDeepnets(africa.hex, predictorsCols = c(allSpectralDataNoCO2, spatialPredictors, depthIx),
+#                                                              noOfEpochs = 7)
+
+#new hyperparameter search
+hyperParametersAllSpectra <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingShuffled.csv'),
+                                                            predictorsCols = allSpectralData,
+                                                            noOfEpochs = 6, maxMem = '13g')
+hyperParametersSpectraNoCO2 <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingShuffled.csv'),
+                                                              predictorsCols = allSpectralDataNoCO2,
+                                                              noOfEpochs = 6, maxMem = '13g')
+hyperParametersAllSpectraDepth <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingShuffled.csv'),
+                                                                 predictorsCols = c(allSpectralData, depthIx), 
+                                                                 noOfEpochs = 6, maxMem = '13g')
+hyperParametersSpectraNoCO2Depth <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingShuffled.csv'),
+                                                                   predictorsCols = c(allSpectralDataNoCO2, depthIx),
+                                                                   noOfEpochs = 6, maxMem = '13g')
+hyperParametersAllData <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingShuffled.csv'),
+                                                         predictorsCols = c(allSpectralData, spatialPredictors, depthIx),
+                                                         noOfEpochs = 6, maxMem = '13g')
+hyperParametersAllDataNoCO2 <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingShuffled.csv'),
+                                                              predictorsCols = c(allSpectralDataNoCO2, spatialPredictors, depthIx),
+                                                              noOfEpochs = 6, maxMem = '13g')
 
 noDropout <- c('Rectifier', 'Tanh', 'Maxout')
 hidden_layers = list(c(50, 50), c(100, 100), c(50, 50, 50), c(100, 100, 100))
@@ -357,6 +393,11 @@ gridAda <- expand.grid(c(0.9, 0.95, 0.99), c(1e-12, 1e-10, 1e-8, 1e-6), stringsA
 gridLs <- expand.grid(c(0, 1e-5, 1e-3), c(0, 1e-5, 1e-3), stringsAsFactors = TRUE) #this creates all possible combinations
 
 #--------------------------------------------------
+#Create an h2o parsed data
+require('h2o')
+localH2O = h2o.init(ip = "localhost", port = 54421, max_mem_size = '4g', startH2O = TRUE)
+africa.hex = h2o.importFile(localH2O, path = paste0(dataDirectory, 'trainingShuffled.csv'))
+
 DeepNNModelCa <- h2o.deeplearning(x = seq(2, 3579),
                                   y = hyperParameters[1],
                                   data = africa.hex,

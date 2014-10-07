@@ -1,25 +1,26 @@
-gridCrossValidationh2oDeepnets <- function(H2OParsedDataObject, 
-                                           predictorsCols = 1:dim(as.data.frame(africa.hex))[2],
-                                           noOfEpochs = 5, nFolds = 5, printScore = TRUE){
+gridCrossValidationh2oDeepnets <- function(DataDir, 
+                                           predictorsCols = 1:dim(as.data.frame(DataDir))[2],
+                                           noOfEpochs = 5, nFolds = 5, printScore = TRUE, maxMem = '1g'){
   
+  require('h2o')
   require('Metrics')
-  
-  #Use 80% of data and 20% of test scores
-  Hex80 <- H2OParsedDataObject[1:floor(dim(H2OParsedDataObject)[1] * 0.8), ]
-  HexTest <- H2OParsedDataObject[(floor(dim(H2OParsedDataObject)[1] * 0.8) + 1):floor(dim(H2OParsedDataObject)[1]), ]  
-  
-  #derp <- h2o.splitFrame(H2OParsedDataObject, ratios = 0.8, shuffle = TRUE)
     
   #Cols to predict
   predCol <- c('Ca', 'P', 'pH', 'SOC', 'Sand')
   activations <- c('RectifierWithDropout', 'TanhWithDropout', 'MaxoutWithDropout', 
                    'Rectifier', 'Tanh', 'Maxout')
+  noDropout <- c('Rectifier', 'Tanh', 'Maxout')
+  
+  localH2O <- h2o.init(ip = "localhost", port = 54321, max_mem_size = maxMem, startH2O = TRUE)
+  hex <- h2o.importFile(localH2O, path = DataDir)
+  splitObject <- h2o.splitFrame(hex, ratios = 0.8, shuffle = TRUE)
+  Hex80 <- splitObject[[1]]
+  HexTest <- splitObject[[2]]  
   targets80 <- cbind(as.data.frame(Hex80$Ca), as.data.frame(Hex80$P), as.data.frame(Hex80$pH), 
                      as.data.frame(Hex80$SOC), as.data.frame(Hex80$Sand))
   targetsTest <- cbind(as.data.frame(HexTest$Ca), as.data.frame(HexTest$P), as.data.frame(HexTest$pH), 
-                       as.data.frame(HexTest$SOC), as.data.frame(HexTest$Sand))  
-  noDropout <- c('Rectifier', 'Tanh', 'Maxout')
-  
+                       as.data.frame(HexTest$SOC), as.data.frame(HexTest$Sand)) 
+    
   optimalActivations <- sapply(predCol, function(target){    
     activationsErrors <- sapply(activations, function(actvs){ 
       #n-fold x-validation      
@@ -30,7 +31,7 @@ gridCrossValidationh2oDeepnets <- function(H2OParsedDataObject,
                                   y = target,
                                   data = Hex80[folds != k, ],
                                   classification = FALSE, balance_classes = FALSE, 
-                                  validation = Hex80[folds == k, ], 
+                                  validation = HexTest[folds == k, ], 
                                   activation = actvs,
                                   hidden = c(30, 30),
                                   input_dropout_ratio = ifelse(actvs %in% noDropout, 0, 0.1),
@@ -45,24 +46,36 @@ gridCrossValidationh2oDeepnets <- function(H2OParsedDataObject,
       return(mean(CVErrors))      
     })    
     return(names(which.min(activationsErrors)))    
-  })
+  })  
+  h2o.shutdown(localH2O, prompt = FALSE)  
   
+  #Update optimal activations
+  optimalParameters <- cbind(predCol, optimalActivations)
+    
   #Create a set of network topologies
   hidden_layers = list(c(50, 50), c(100, 100), c(50, 50, 50), c(100, 100, 100))
   
-  optimalParameters <- cbind(predCol, optimalActivations)
+  localH2O <- h2o.init(ip = "localhost", port = 54321, max_mem_size = maxMem, startH2O = TRUE)
+  hex <- h2o.importFile(localH2O, path = DataDir)
+  splitObject <- h2o.splitFrame(hex, ratios = 0.8, shuffle = TRUE)
+  Hex80 <- splitObject[[1]]
+  HexTest <- splitObject[[2]]  
+  targets80 <- cbind(as.data.frame(Hex80$Ca), as.data.frame(Hex80$P), as.data.frame(Hex80$pH), 
+                     as.data.frame(Hex80$SOC), as.data.frame(Hex80$Sand))
+  targetsTest <- cbind(as.data.frame(HexTest$Ca), as.data.frame(HexTest$P), as.data.frame(HexTest$pH), 
+                       as.data.frame(HexTest$SOC), as.data.frame(HexTest$Sand)) 
   
   optimalArchitecture <- apply(optimalParameters, 1, function(parameters){
     activationsErrors <- lapply(hidden_layers, function(architecture){   
       #n-fold x-validation      
-      set.seed(10101)
+      set.seed(10102)
       folds <- sample(rep(1:nFolds, length = nrow(Hex80)))
       CVErrors <- sapply(1:nFolds, function(k){
         model <- h2o.deeplearning(x = predictorsCols,
                                   y = parameters[1],
                                   data = Hex80[folds != k, ],
                                   classification = FALSE, balance_classes = FALSE, 
-                                  validation = Hex80[folds == k, ], 
+                                  validation = HexTest[folds == k, ], 
                                   activation = parameters[2],
                                   hidden = architecture,
                                   input_dropout_ratio = ifelse(parameters[2] %in% noDropout, 0, 0.1),
@@ -79,23 +92,36 @@ gridCrossValidationh2oDeepnets <- function(H2OParsedDataObject,
     })    
     return(which.min(unlist(activationsErrors)))    
   })
+  h2o.shutdown(localH2O, prompt = FALSE)  
   
+  #Update optimal activations
   optimalParameters <- cbind(optimalParameters, optimalArchitecture)  
+  
   #ADADELTA
   #grid search
   gridAda <- expand.grid(c(0.9, 0.95, 0.99), c(1e-12, 1e-10, 1e-8, 1e-6), stringsAsFactors = TRUE) #this creates all possible combinations
+  
+  localH2O <- h2o.init(ip = "localhost", port = 54321, max_mem_size = maxMem, startH2O = TRUE)
+  hex <- h2o.importFile(localH2O, path = DataDir)
+  splitObject <- h2o.splitFrame(hex, ratios = 0.8, shuffle = TRUE)
+  Hex80 <- splitObject[[1]]
+  HexTest <- splitObject[[2]]  
+  targets80 <- cbind(as.data.frame(Hex80$Ca), as.data.frame(Hex80$P), as.data.frame(Hex80$pH), 
+                     as.data.frame(Hex80$SOC), as.data.frame(Hex80$Sand))
+  targetsTest <- cbind(as.data.frame(HexTest$Ca), as.data.frame(HexTest$P), as.data.frame(HexTest$pH), 
+                       as.data.frame(HexTest$SOC), as.data.frame(HexTest$Sand)) 
   
   optimalAdaParams <- apply(optimalParameters, 1, function(parameters){
     activationsErrors <- apply(gridAda, 1, function(adaDelta){ 
       CVErrors <- sapply(1:nFolds, function(k){  
         #n-fold x-validation      
-        set.seed(10101)
+        set.seed(10103)
         folds <- sample(rep(1:nFolds, length = nrow(Hex80)))
         model <- h2o.deeplearning(x = predictorsCols,
                                   y = parameters[1],
                                   data = Hex80[folds != k, ],
                                   classification = FALSE, balance_classes = FALSE,
-                                  validation = Hex80[folds == k, ],                                 
+                                  validation = HexTest[folds == k, ],                                 
                                   activation = parameters[2],
                                   hidden = hidden_layers[[as.numeric(parameters[3])]],
                                   adaptive_rate = TRUE,
@@ -117,24 +143,36 @@ gridCrossValidationh2oDeepnets <- function(H2OParsedDataObject,
     })    
     return(which.min(activationsErrors))    
   })
+  h2o.shutdown(localH2O, prompt = FALSE)  
   
+  #Update optimal activations  
   optimalParameters <- cbind(optimalParameters, optimalAdaParams)  
   
   #l1-l2 regularization
   #grid search
   gridLs <- expand.grid(c(0, 1e-5, 1e-3), c(0, 1e-5, 1e-3), stringsAsFactors = TRUE) #this creates all possible combinations
   
+  localH2O <- h2o.init(ip = "localhost", port = 54321, max_mem_size = maxMem, startH2O = TRUE)
+  hex <- h2o.importFile(localH2O, path = DataDir)
+  splitObject <- h2o.splitFrame(hex, ratios = 0.8, shuffle = TRUE)
+  Hex80 <- splitObject[[1]]
+  HexTest <- splitObject[[2]]  
+  targets80 <- cbind(as.data.frame(Hex80$Ca), as.data.frame(Hex80$P), as.data.frame(Hex80$pH), 
+                     as.data.frame(Hex80$SOC), as.data.frame(Hex80$Sand))
+  targetsTest <- cbind(as.data.frame(HexTest$Ca), as.data.frame(HexTest$P), as.data.frame(HexTest$pH), 
+                       as.data.frame(HexTest$SOC), as.data.frame(HexTest$Sand)) 
+  
   optimalLParams <- apply(optimalParameters, 1, function(parameters){
     activationsErrors <- apply(gridLs, 1, function(L){ 
       CVErrors <- sapply(1:nFolds, function(k){  
         #n-fold x-validation      
-        set.seed(10101)
+        set.seed(10104)
         folds <- sample(rep(1:nFolds, length = nrow(Hex80)))
         model <- h2o.deeplearning(x = predictorsCols,
                                   y = parameters[1],
                                   data = Hex80[folds != k, ],
                                   classification = FALSE, balance_classes = FALSE,
-                                  validation = Hex80[folds == k, ],                                 
+                                  validation = HexTest[folds == k, ],                                 
                                   activation = parameters[2],
                                   hidden = hidden_layers[[as.numeric(parameters[3])]],
                                   adaptive_rate = TRUE,
@@ -158,11 +196,23 @@ gridCrossValidationh2oDeepnets <- function(H2OParsedDataObject,
     })    
     return(which.min(activationsErrors))    
   })
+  h2o.shutdown(localH2O, prompt = FALSE)  
   
+  #Update optimal activations    
   optimalParameters <- cbind(optimalParameters, optimalLParams)
   
   #Compute Combined Score  
   if(printScore == TRUE){
+    localH2O <- h2o.init(ip = "localhost", port = 54321, max_mem_size = maxMem, startH2O = TRUE)
+    hex <- h2o.importFile(localH2O, path = DataDir)
+    splitObject <- h2o.splitFrame(hex, ratios = 0.8, shuffle = TRUE)
+    Hex80 <- splitObject[[1]]
+    HexTest <- splitObject[[2]]  
+    targets80 <- cbind(as.data.frame(Hex80$Ca), as.data.frame(Hex80$P), as.data.frame(Hex80$pH), 
+                       as.data.frame(Hex80$SOC), as.data.frame(Hex80$Sand))
+    targetsTest <- cbind(as.data.frame(HexTest$Ca), as.data.frame(HexTest$P), as.data.frame(HexTest$pH), 
+                         as.data.frame(HexTest$SOC), as.data.frame(HexTest$Sand)) 
+    
     RMSEs <- apply(optimalParameters, 1, function(parameters){
       model <- h2o.deeplearning(x = predictorsCols,
                                 y = parameters[1],
@@ -195,6 +245,8 @@ gridCrossValidationh2oDeepnets <- function(H2OParsedDataObject,
     })  
     print(paste0('MCRMSE Score of: ', mean(RMSEs)))
   }
+  h2o.shutdown(localH2O, prompt = FALSE)  
+  
   #Return all results plus errors
   return(list(optimalParameters, RMSEs))
 }
