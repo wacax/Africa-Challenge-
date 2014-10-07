@@ -74,7 +74,7 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
                                   epochs = noOfEpochs * 2, force_load_balance = TRUE)  
         
         Prediction <- unlist(as.data.frame(h2o.predict(model, newdata = splitObject[[1]][folds == k, ])))
-        RMSEError <- rmse(targets80[folds == k, target], Prediction)
+        RMSEError <- rmse(targets80[folds == k, parameters[1]], Prediction)
         return(RMSEError)         
       })
       h2o.rm(object = localH2O, keys = h2o.ls(localH2O)$Key[1:(length(h2o.ls(localH2O)$Key) - 3)])
@@ -114,7 +114,7 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
                                   epochs = noOfEpochs * 2, force_load_balance = TRUE)  
         
         Prediction <- unlist(as.data.frame(h2o.predict(model, newdata = splitObject[[1]][folds == k, ])))
-        RMSEError <- rmse(targets80[folds == k, target], Prediction)         
+        RMSEError <- rmse(targets80[folds == k, parameters[1]], Prediction)         
         return(RMSEError)        
       })
       h2o.rm(object = localH2O, keys = h2o.ls(localH2O)$Key[1:(length(h2o.ls(localH2O)$Key) - 3)])
@@ -157,7 +157,7 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
                                   epochs = noOfEpochs * 2, force_load_balance = TRUE)  
         
         Prediction <- unlist(as.data.frame(h2o.predict(model, newdata = splitObject[[1]][folds == k, ])))
-        RMSEError <- rmse(targets80[folds == k, target], Prediction)         
+        RMSEError <- rmse(targets80[folds == k, parameters[1]], Prediction)         
         return(RMSEError)        
       })
       h2o.rm(object = localH2O, keys = h2o.ls(localH2O)$Key[1:(length(h2o.ls(localH2O)$Key) - 3)])
@@ -196,7 +196,7 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
       if(parameters[1] != 'P'){
         RMSEError <- rmse(targetsTest[parameters[1]], Prediction)        
       }else{
-        RMSEError <- rmse(exp(targetsTest[parameters[1]] - 2), exp(Prediction) - 2)
+        RMSEError <- rmse((exp(targetsTest[parameters[1]]) - 2), exp(Prediction) - 2)
       }
       h2o.rm(object = localH2O, keys = h2o.ls(localH2O)$Key[1:(length(h2o.ls(localH2O)$Key) - 3)])
       print(paste0(parameters[1], ' RMSE Error of ', RMSEError, ' with activation: ', parameters[2], 
