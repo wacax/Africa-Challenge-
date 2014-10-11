@@ -34,9 +34,9 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
                                   validation = splitObject[[1]][folds == k, ], 
                                   activation = actvs,
                                   hidden = c(30, 30),
-                                  input_dropout_ratio = ifelse(actvs %in% noDropout, 0, 0.1),
+                                  input_dropout_ratio = 0,
                                   l2 = ifelse(actvs == 'Rectifier' | actvs == 'Tanh', 1e-5, 0),
-                                  epochs = noOfEpochs, force_load_balance = TRUE)  
+                                  epochs = noOfEpochs)  
         
         Prediction <- unlist(as.data.frame(h2o.predict(model, newdata = splitObject[[1]][folds == k, ])))
         RMSEError <- rmse(targets80[folds == k, target], Prediction)
@@ -69,9 +69,9 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
                                   validation = splitObject[[1]][folds == k, ], 
                                   activation = parameters[2],
                                   hidden = architecture,
-                                  input_dropout_ratio = ifelse(parameters[2] %in% noDropout, 0, 0.1),
+                                  input_dropout_ratio = 0,
                                   l2 = ifelse(parameters[2] == 'Rectifier' | parameters[2] == 'Tanh', 1e-5, 0),
-                                  epochs = noOfEpochs * 2, force_load_balance = TRUE)  
+                                  epochs = noOfEpochs * 2)  
         
         Prediction <- unlist(as.data.frame(h2o.predict(model, newdata = splitObject[[1]][folds == k, ])))
         RMSEError <- rmse(targets80[folds == k, parameters[1]], Prediction)
@@ -109,9 +109,9 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
                                   adaptive_rate = TRUE,
                                   rho = as.numeric(adaDelta[1]),
                                   epsilon = as.numeric(adaDelta[2]),
-                                  input_dropout_ratio = ifelse(parameters[2] %in% noDropout, 0, 0.1),
+                                  input_dropout_ratio = 0,
                                   l2 = ifelse(parameters[2] == 'Rectifier' | parameters[2] == 'Tanh', 1e-5, 0),
-                                  epochs = noOfEpochs * 2, force_load_balance = TRUE)  
+                                  epochs = noOfEpochs * 2)  
         
         Prediction <- unlist(as.data.frame(h2o.predict(model, newdata = splitObject[[1]][folds == k, ])))
         RMSEError <- rmse(targets80[folds == k, parameters[1]], Prediction)         
@@ -151,10 +151,10 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
                                   adaptive_rate = TRUE,
                                   rho = gridAda[as.numeric(parameters[4]), 1],
                                   epsilon = gridAda[as.numeric(parameters[4]), 2],
-                                  input_dropout_ratio = ifelse(parameters[2] %in% noDropout, 0, 0.1),
+                                  input_dropout_ratio = 0,
                                   l1 = as.numeric(L[1]),
                                   l2 = as.numeric(L[2]),
-                                  epochs = noOfEpochs * 2, force_load_balance = TRUE)  
+                                  epochs = noOfEpochs * 2)  
         
         Prediction <- unlist(as.data.frame(h2o.predict(model, newdata = splitObject[[1]][folds == k, ])))
         RMSEError <- rmse(targets80[folds == k, parameters[1]], Prediction)         
@@ -187,10 +187,10 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
                                 adaptive_rate = TRUE,
                                 rho = gridAda[as.numeric(parameters[4]), 1],
                                 epsilon = gridAda[as.numeric(parameters[4]), 2],
-                                input_dropout_ratio = ifelse(parameters[2] %in% noDropout, 0, 0.1),
+                                input_dropout_ratio = 0,
                                 l1 = gridLs[as.numeric(parameters[5]), 1],
                                 l2 = gridLs[as.numeric(parameters[5]), 2],
-                                epochs = noOfEpochs * 4, force_load_balance = TRUE)  
+                                epochs = noOfEpochs * 4)  
       
       Prediction <- unlist(as.data.frame(h2o.predict(model, newdata = splitObject[[2]])))
       if(parameters[1] != 'P'){
