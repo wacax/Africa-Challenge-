@@ -90,7 +90,6 @@ multiplot(allSpectraSubsoil, allSpectraTopsoil, SpectralDataNoCO2Subsoil, Spectr
 
 ################################
 #EDA
-
 #Ca histogram
 ggplot(data = train, aes(x = Ca)) +  geom_histogram() 
 #P histogram
