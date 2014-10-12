@@ -14,8 +14,6 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
   localH2O <- h2o.init(ip = "localhost", port = 54321, max_mem_size = maxMem, startH2O = TRUE)
   hex <- h2o.importFile(localH2O, path = DataDir)
   splitObject <- h2o.splitFrame(hex, ratios = 0.8, shuffle = TRUE)
-  #Hex80 <- splitObject[[1]]
-  #HexTest <- splitObject[[2]]  
   targets80 <- cbind(as.data.frame(splitObject[[1]]$Ca), as.data.frame(splitObject[[1]]$P), as.data.frame(splitObject[[1]]$pH), 
                      as.data.frame(splitObject[[1]]$SOC), as.data.frame(splitObject[[1]]$Sand))
   targetsTest <- cbind(as.data.frame(splitObject[[2]]$Ca), as.data.frame(splitObject[[2]]$P), as.data.frame(splitObject[[2]]$pH), 
