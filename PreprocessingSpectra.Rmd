@@ -1,0 +1,302 @@
+AfSIS Soil Spectra Preprocessing
+========================================================
+This article is meant as a guide to spectra preprocessing based on two introductory books: Chemometrics - A Prectical Guide by Beebe at. al. and Chemometrics with R by Wehrens using the data from the Africa Soil Property Prediction Challenge which can be downloaded on: http://www.kaggle.com/c/afsis-soil-properties/data
+
+
+According to Wikipedia, signal preprocessing in chemometrics "is also a critical component of almost all chemometric applications, particularly the use of signal pretreatments to condition data prior to calibration or classification. The techniques employed commonly in chemometrics are often closely related to those used in related fields"[1]. Meaning that many of the techniques applied here can be also be applied to other areas. In my personal experience I've encountered spectral analysis in two areas: Neuroscience and Finance (Stock Markets) for which I am aware of the importance of signal preprocessing because an algorithm will output better results when the data does not contain noise and is corrected, even nowadays with advanced algorithms such as deep neural networks.
+
+Deep neural networks (H20 implementation - http://h2o.ai/) were tested with and without spectra preprocessing. Deep neural nets with spectra preprocessing, even a simple method were superior than the results without preprocessing. Said process will not be shown here since that is not the goal of this article. For a pure "Deep Learning" solution please refer to the section about deep autoencoders found on:
+http://deeplearning.net/tutorial/dA.html#daa
+http://ufldl.stanford.edu/wiki/index.php/UFLDL_Tutorial
+
+The first step is to load the libraries and data into R
+
+
+Libraries, Functions and Data
+------------
+
+```{r results='hide', message=FALSE}
+#Load/install required libraries
+require('ggplot2')
+require('reshape2')
+require('stringr')
+require('grid')
+require('prospectr')
+require('pls')
+require('ptw')
+
+#Load Data
+train <- read.csv('training.csv', header = TRUE, stringsAsFactors = FALSE)
+test <- read.csv('sorted_test.csv', header = TRUE, stringsAsFactors = FALSE)
+#Data Transformation
+train <- transform(train, Depth = as.numeric(as.factor(train$Depth)) - 1)
+test <- transform(test, Depth = as.numeric(as.factor(test$Depth)) - 1)
+
+```
+In order to display grid plots using ggplot2 we are going to need two additional functions found on:
+*http://www.kaggle.com/c/afsis-soil-properties/forums/t/10184/first-derivative*
+and
+*http://www.cookbook-r.com/Graphs/Multiple_graphs_on_one_page_%28ggplot2%29/*
+after this, we will be ready to start exploring the effects of preprocessing in our data.
+
+```{r results='hide'}
+#Additional Functions
+#Plotting Spectra
+plotSpectra <- function(numberOfSamples, spectralData, subsample, dataDF){
+  #based on http://www.kaggle.com/c/afsis-soil-properties/forums/t/10184/first-derivative
+  ixs <- sample(which(1:nrow(dataDF) %in% subsample), numberOfSamples)
+  trainRawSub <- melt(dataDF[ixs, ], id.vars = "PIDN", measure.vars = spectralData)
+  trainRawSub$variable <- as.numeric(str_replace_all(trainRawSub$variable,"m",""))
+  ggplot(trainRawSub, aes(x = variable, y = value, colour = PIDN)) + geom_line()
+}
+
+# Multiple plot function
+#
+# ggplot objects can be passed in ..., or to plotlist (as a list of ggplot objects)
+# - cols:   Number of columns in layout
+# - layout: A matrix specifying the layout. If present, 'cols' is ignored.
+#
+# If the layout is something like matrix(c(1,2,3,3), nrow=2, byrow=TRUE),
+# then plot 1 will go in the upper left, 2 will go in the upper right, and
+# 3 will go all the way across the bottom.
+#
+#
+#gotten from : http://www.cookbook-r.com/Graphs/Multiple_graphs_on_one_page_%28ggplot2%29/
+
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  require(grid)  
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+  numPlots = length(plots)
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                     ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+  if (numPlots==1) {
+    print(plots[[1]])
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))  
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))      
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+```
+Smoothing
+------------
+Smoothing is an important step because it attempts to remove noise. Noise is usually assumed to be high frecuency data injected to the signal. 
+
+#Transform it to H2O compatible file
+#Make a Shuffled CSV to train h2o models
+set.seed(1010)
+randomSubset <- sample.int(nrow(train), nrow(train)) #full data
+trainShuffled <- train[randomSubset, ]
+trainShuffled$P <- log(trainShuffled$P + 2)
+write.csv(trainShuffled, file = paste0(dataDirectory, 'trainingShuffled.csv'), row.names = FALSE)
+
+#Test Data
+write.csv(test, file = paste0(dataDirectory, 'testNumeric.csv'), row.names = FALSE)
+
+#Signal Processing
+#Spectra / CO2 and others
+CO2SignalOR <- seq(which(names(train) == 'm2379.76'), which(names(train) == 'm2352.76'))
+allSpectralDataOR <- seq(which(names(train) == 'm7497.96'), which(names(train) == 'm599.76'))
+allSpectralDataNoCO2OR <- c(seq(which(names(train) == 'm7497.96'), which(names(train) == 'm2379.76')), 
+                            seq(which(names(train) == 'm2352.76'), which(names(train) == 'm599.76')))
+spatialPredictorsOR <- seq(which(names(train) == 'BSAN'), which(names(train) == 'TMFI'))
+depthIxOR <- which(names(train) == 'Depth')
+
+
+
+#Subsoil all spectra
+allSpectraSubsoil <- plotSpectra(10, spectralData = allSpectralDataOR, subsample = which(train$Depth == 0), train)
+#Topsoil all spectra
+allSpectraTopsoil <- plotSpectra(10, spectralData = allSpectralDataOR, subsample = which(train$Depth == 1), train)
+#Subsoil no CO2
+SpectralDataNoCO2Subsoil <- plotSpectra(10, spectralData = allSpectralDataNoCO2OR, subsample = which(train$Depth == 0), train)
+#Topsoil no CO2
+SpectralDataNoCO2Topsoil <- plotSpectra(10, spectralData = allSpectralDataNoCO2OR, subsample = which(train$Depth == 1), train)
+
+multiplot(allSpectraSubsoil, allSpectraTopsoil, SpectralDataNoCO2Subsoil, SpectralDataNoCO2Topsoil, cols = 2)
+
+#--------------------------------
+#Transformations
+#Smoothing
+#Binning
+#w/ 11 bins
+trainBin11 <- binning(train[ , allSpectralDataOR], bin.size=10)
+trainBin11 <- cbind(train[ , 'PIDN'], trainBin11, train[ , spatialPredictorsOR], train$Depth)
+names(trainBin11)[1] <- 'PIDN'
+names(trainBin11)[length(trainBin11)] <- 'Depth'
+#Spectra / CO2 and others
+allSpectralData <- seq(2, length(trainBin11) - 16)
+spatialPredictors <- seq(which(names(trainBin11) == 'BSAN'), which(names(trainBin11) == 'TMFI'))
+depthIx <- which(names(trainBin11) == 'Depth')#
+#Subsoil all spectra
+bin11SmootherallSpectraSubsoil <- plotSpectra(10, spectralData = allSpectralData, subsample = which(trainBin11$Depth == 0), trainBin11)
+#Topsoil all spectra
+bin11SmootherallSpectraTopsoil <- plotSpectra(10, spectralData = allSpectralData, subsample = which(trainBin11$Depth == 1), trainBin11)
+
+multiplot(bin11SmootherallSpectraSubsoil, bin11SmootherallSpectraTopsoil, cols = 2)
+
+#w/ 50 bins
+trainBin50 <- binning(train[ , allSpectralDataOR], bin.size=50)
+trainBin50 <- cbind(train[ , 'PIDN'], trainBin50, train[ , spatialPredictorsOR], train$Depth)
+names(trainBin50)[1] <- 'PIDN'
+names(trainBin50)[length(trainBin50)] <- 'Depth'
+#Spectra / CO2 and others
+allSpectralData <- seq(2, length(trainBin50) - 16)
+spatialPredictors <- seq(which(names(trainBin50) == 'BSAN'), which(names(trainBin50) == 'TMFI'))
+depthIx <- which(names(trainBin50) == 'Depth')
+#Subsoil all spectra
+bin50SmootherallSpectraSubsoil <- plotSpectra(10, spectralData = allSpectralData, subsample = which(trainBin50$Depth == 0), trainBin50)
+#Topsoil all spectra
+bin50SmootherallSpectraTopsoil <- plotSpectra(10, spectralData = allSpectralData, subsample = which(trainBin50$Depth == 1), trainBin50)
+
+multiplot(bin50SmootherallSpectraSubsoil, bin50SmootherallSpectraSubsoil, cols = 2)
+
+#Running Mean Smoother
+trainMeanSmoother <- as.data.frame(movav(train[ , allSpectralDataOR], w = 11))
+trainMeanSmoother <- cbind(train[ , 'PIDN'], trainMeanSmoother, train[ , spatialPredictorsOR], train$Depth)
+names(trainMeanSmoother)[1] <- 'PIDN'
+names(trainMeanSmoother)[length(trainMeanSmoother)] <- 'Depth'
+
+#Spectra / CO2 and others
+CO2Signal <- seq(which(names(trainMeanSmoother) == 'm2379.76'), which(names(trainMeanSmoother) == 'm2352.76'))
+allSpectralData <- seq(2, length(trainMeanSmoother) - 16)
+allSpectralDataNoCO2 <- c(seq(2, which(names(trainMeanSmoother) == 'm2379.76')), 
+                          seq(which(names(trainMeanSmoother) == 'm2352.76'), length(trainMeanSmoother) - 16))
+spatialPredictors <- seq(which(names(trainMeanSmoother) == 'BSAN'), which(names(trainMeanSmoother) == 'TMFI'))
+depthIx <- which(names(trainMeanSmoother) == 'Depth')
+
+#Subsoil all spectra
+meanSmootherallSpectraSubsoil <- plotSpectra(10, spectralData = allSpectralData, subsample = which(trainMeanSmoother$Depth == 0), trainMeanSmoother)
+#Topsoil all spectra
+meanSmootherallSpectraTopsoil <- plotSpectra(10, spectralData = allSpectralData, subsample = which(trainMeanSmoother$Depth == 1), trainMeanSmoother)
+#Subsoil no CO2
+meanSmootherSpectralDataNoCO2Subsoil <- plotSpectra(10, spectralData = allSpectralDataNoCO2, subsample = which(trainMeanSmoother$Depth == 0), trainMeanSmoother)
+#Topsoil no CO2
+meanSmootherSpectralDataNoCO2Topsoil <- plotSpectra(10, spectralData = allSpectralDataNoCO2, subsample = which(trainMeanSmoother$Depth == 1), trainMeanSmoother)
+
+multiplot(meanSmootherallSpectraSubsoil, meanSmootherallSpectraTopsoil,
+          meanSmootherSpectralDataNoCO2Subsoil, meanSmootherSpectralDataNoCO2Topsoil, cols = 2)
+
+#Running Polinomial Smoother (Savitzky-Golay filtering)
+trainSGSmoother <- as.data.frame(savitzkyGolay(train[ , allSpectralDataOR], p = 3, w = 11, m = 0))
+trainSGSmoother <- cbind(train[ , 'PIDN'], trainSGSmoother, train[ , spatialPredictorsOR], train$Depth)
+names(trainSGSmoother)[1] <- 'PIDN'
+names(trainSGSmoother)[length(trainSGSmoother)] <- 'Depth'
+
+#Spectra / CO2 and others
+CO2Signal <- seq(which(names(trainSGSmoother) == 'm2379.76'), which(names(trainSGSmoother) == 'm2352.76'))
+allSpectralData <- seq(2, length(trainSGSmoother) - 16)
+allSpectralDataNoCO2 <- c(seq(2, which(names(trainSGSmoother) == 'm2379.76')), 
+                          seq(which(names(trainSGSmoother) == 'm2352.76'), length(trainSGSmoother) - 16))
+spatialPredictors <- seq(which(names(trainSGSmoother) == 'BSAN'), which(names(trainSGSmoother) == 'TMFI'))
+depthIx <- which(names(trainSGSmoother) == 'Depth')
+
+#Subsoil all spectra
+SGSmootherallSpectraSubsoil <- plotSpectra(10, spectralData = allSpectralData, subsample = which(trainSGSmoother$Depth == 0), trainSGSmoother)
+#Topsoil all spectra
+SGSmootherallSpectraTopsoil <- plotSpectra(10, spectralData = allSpectralData, subsample = which(trainSGSmoother$Depth == 1), trainSGSmoother)
+#Subsoil no CO2
+SGSmootherSpectralDataNoCO2Subsoil <- plotSpectra(10, spectralData = allSpectralDataNoCO2, subsample = which(trainSGSmoother$Depth == 0), trainSGSmoother)
+#Topsoil no CO2
+SGSmootherSpectralDataNoCO2Topsoil <- plotSpectra(10, spectralData = allSpectralDataNoCO2, subsample = which(trainSGSmoother$Depth == 1), trainSGSmoother)
+
+multiplot(SGSmootherallSpectraSubsoil, SGSmootherallSpectraTopsoil,
+          SGSmootherSpectralDataNoCO2Subsoil, SGSmootherSpectralDataNoCO2Topsoil, cols = 2)
+
+#Baseline Correction
+#Savitzky - Golay and Gorry with second dderivative
+trainSGBasslineCor <- as.data.frame(savitzkyGolay(train[ , allSpectralDataOR], p = 3, w = 11, m = 2))
+trainSGBasslineCor <- cbind(train[ , 'PIDN'], trainSGBasslineCor, train[ , spatialPredictorsOR], train$Depth)
+names(trainSGBasslineCor)[1] <- 'PIDN'
+names(trainSGBasslineCor)[length(trainSGBasslineCor)] <- 'Depth'
+
+#Spectra / CO2 and others
+CO2Signal <- seq(which(names(trainSGBasslineCor) == 'm2379.76'), which(names(trainSGBasslineCor) == 'm2352.76'))
+allSpectralData <- seq(2, length(trainSGBasslineCor) - 16)
+allSpectralDataNoCO2 <- c(seq(2, which(names(trainSGBasslineCor) == 'm2379.76')), 
+                          seq(which(names(trainSGBasslineCor) == 'm2352.76'), length(trainSGBasslineCor) - 16))
+spatialPredictors <- seq(which(names(trainSGBasslineCor) == 'BSAN'), which(names(trainSGBasslineCor) == 'TMFI'))
+depthIx <- which(names(trainSGBasslineCor) == 'Depth')
+
+#Subsoil all spectra
+SGBassallSpectraSubsoil <- plotSpectra(10, spectralData = allSpectralData, subsample = which(trainSGBasslineCor$Depth == 0), trainSGBasslineCor)
+#Topsoil all spectra
+SGBassallSpectraTopsoil <- plotSpectra(10, spectralData = allSpectralData, subsample = which(trainSGBasslineCor$Depth == 1), trainSGBasslineCor)
+#Subsoil no CO2
+SGBassSpectralDataNoCO2Subsoil <- plotSpectra(10, spectralData = allSpectralDataNoCO2, subsample = which(trainSGBasslineCor$Depth == 0), trainSGBasslineCor)
+#Topsoil no CO2
+SGBassSpectralDataNoCO2Topsoil <- plotSpectra(10, spectralData = allSpectralDataNoCO2, subsample = which(trainSGBasslineCor$Depth == 1), trainSGBasslineCor)
+
+multiplot(SGBassallSpectraSubsoil, SGBassallSpectraTopsoil,
+          SGBassSpectralDataNoCO2Subsoil, SGBassSpectralDataNoCO2Topsoil, cols = 2)
+
+
+#MSC (Multiplicative Scatter Correction)
+trainMSC <- as.data.frame(msc(as.matrix(train[ , allSpectralDataOR])))
+trainMSC <- cbind(train[ , 'PIDN'], trainMSC, train[ , spatialPredictorsOR], train$Depth)
+names(trainMSC)[1] <- 'PIDN'
+names(trainMSC)[length(trainMSC)] <- 'Depth'
+
+#Spectra / CO2 and others
+CO2Signal <- seq(which(names(trainMSC) == 'm2379.76'), which(names(trainMSC) == 'm2352.76'))
+allSpectralData <- seq(2, length(trainMSC) - 16)
+allSpectralDataNoCO2 <- c(seq(2, which(names(trainMSC) == 'm2379.76')), 
+                          seq(which(names(trainMSC) == 'm2352.76'), length(trainMSC) - 16))
+spatialPredictors <- seq(which(names(trainMSC) == 'BSAN'), which(names(trainMSC) == 'TMFI'))
+depthIx <- which(names(trainMSC) == 'Depth')
+
+#Subsoil all spectra
+MSCSpectraSubsoil <- plotSpectra(10, spectralData = allSpectralData, subsample = which(trainMSC$Depth == 0), trainMSC)
+#Topsoil all spectra
+MSCSpectraTopsoil <- plotSpectra(10, spectralData = allSpectralData, subsample = which(trainMSC$Depth == 1), trainMSC)
+#Subsoil no CO2
+MSCSpectraNoCO2Subsoil <- plotSpectra(10, spectralData = allSpectralDataNoCO2, subsample = which(trainMSC$Depth == 0), trainMSC)
+#Topsoil no CO2
+MSCSpectraNoCO2Topsoil <- plotSpectra(10, spectralData = allSpectralDataNoCO2, subsample = which(trainMSC$Depth == 1), trainMSC)
+
+multiplot(MSCSpectraSubsoil, MSCSpectraTopsoil, MSCSpectraNoCO2Subsoil, MSCSpectraNoCO2Topsoil, cols = 2)
+
+#Asymmetric Least Squares
+trainALS <- as.data.frame(baseline.corr(train[ , allSpectralDataOR]))
+trainALS <- cbind(train[ , 'PIDN'], trainALS, train[ , spatialPredictorsOR], train$Depth)
+names(trainALS)[1] <- 'PIDN'
+names(trainALS)[length(trainALS)] <- 'Depth'
+
+#Spectra / CO2 and others
+CO2Signal <- seq(which(names(trainALS) == 'm2379.76'), which(names(trainALS) == 'm2352.76'))
+allSpectralData <- seq(2, length(trainALS) - 16)
+allSpectralDataNoCO2 <- c(seq(2, which(names(trainALS) == 'm2379.76')), 
+                          seq(which(names(trainALS) == 'm2352.76'), length(trainALS) - 16))
+spatialPredictors <- seq(which(names(trainALS) == 'BSAN'), which(names(trainALS) == 'TMFI'))
+depthIx <- which(names(trainALS) == 'Depth')
+
+#Subsoil all spectra
+ALSSpectraSubsoil <- plotSpectra(10, spectralData = allSpectralData, subsample = which(trainALS$Depth == 0), trainALS)
+#Topsoil all spectra
+ALSSpectraTopsoil <- plotSpectra(10, spectralData = allSpectralData, subsample = which(trainALS$Depth == 1), trainALS)
+#Subsoil no CO2
+ALSDataNoCO2Subsoil <- plotSpectra(10, spectralData = allSpectralDataNoCO2, subsample = which(trainALS$Depth == 0), trainALS)
+#Topsoil no CO2
+ALSDataNoCO2Topsoil <- plotSpectra(10, spectralData = allSpectralDataNoCO2, subsample = which(trainALS$Depth == 1), trainALS)
+
+multiplot(ALSSpectraSubsoil, ALSSpectraTopsoil, ALSDataNoCO2Subsoil, ALSDataNoCO2Topsoil, cols = 2)
+
+Bibliography
+------------
+[1]https://en.wikipedia.org/wiki/Chemometrics#Other_techniques
+[2]Beebe at. al., Chemometrics - A Prectical Guide, March 1998, ISBN: 978-0-471-12451-1
+[3]Wehrens R., Chemometrics with R Multivariate Data Analysis in the Natural Sciences and Life Sciences; 2011; ISBN 978-3-642-17840-5; e-ISBN 978-3-642-17841-2

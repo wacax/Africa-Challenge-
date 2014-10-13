@@ -1,5 +1,5 @@
 #Liberty Mutual Group - Fire Peril Loss Cost
-#ver 1.1
+#ver 1.2
 
 #########################
 #Init
@@ -11,6 +11,7 @@ require('reshape2')
 require('stringr')
 require('grid')
 require('prospectr')
+require('pls')
 require('ptw')
 require('leaps')
 require('caret')
@@ -68,7 +69,7 @@ allSpectralDataNoCO2OR <- c(seq(which(names(train) == 'm7497.96'), which(names(t
 spatialPredictorsOR <- seq(which(names(train) == 'BSAN'), which(names(train) == 'TMFI'))
 depthIxOR <- which(names(train) == 'Depth')
 
-#Plotting Raw signals
+#Plotting signals
 plotSpectra <- function(numberOfSamples, spectralData, subsample, dataDF){
   #based on http://www.kaggle.com/c/afsis-soil-properties/forums/t/10184/first-derivative
   ixs <- sample(which(1:nrow(dataDF) %in% subsample), numberOfSamples)
@@ -131,7 +132,7 @@ names(trainMeanSmoother)[1] <- 'PIDN'
 names(trainMeanSmoother)[length(trainMeanSmoother)] <- 'Depth'
   
 #Spectra / CO2 and others
-CO2Signal <- seq(which(names(trainMeanSmoother) == 'm2379.76'), which(names(train) == 'm2352.76'))
+CO2Signal <- seq(which(names(trainMeanSmoother) == 'm2379.76'), which(names(trainMeanSmoother) == 'm2352.76'))
 allSpectralData <- seq(2, length(trainMeanSmoother) - 16)
 allSpectralDataNoCO2 <- c(seq(2, which(names(trainMeanSmoother) == 'm2379.76')), 
                           seq(which(names(trainMeanSmoother) == 'm2352.76'), length(trainMeanSmoother) - 16))
@@ -151,13 +152,13 @@ multiplot(meanSmootherallSpectraSubsoil, meanSmootherallSpectraTopsoil,
           meanSmootherSpectralDataNoCO2Subsoil, meanSmootherSpectralDataNoCO2Topsoil, cols = 2)
 
 #Running Polinomial Smoother (Savitzky-Golay filtering)
-trainSGSmoother <- as.data.frame(savitzkyGolay(train[ , allSpectralDataOR], p = 3, w = 7, m = 0))
+trainSGSmoother <- as.data.frame(savitzkyGolay(train[ , allSpectralDataOR], p = 3, w = 11, m = 0))
 trainSGSmoother <- cbind(train[ , 'PIDN'], trainSGSmoother, train[ , spatialPredictorsOR], train$Depth)
 names(trainSGSmoother)[1] <- 'PIDN'
 names(trainSGSmoother)[length(trainSGSmoother)] <- 'Depth'
 
 #Spectra / CO2 and others
-CO2Signal <- seq(which(names(trainSGSmoother) == 'm2379.76'), which(names(train) == 'm2352.76'))
+CO2Signal <- seq(which(names(trainSGSmoother) == 'm2379.76'), which(names(trainSGSmoother) == 'm2352.76'))
 allSpectralData <- seq(2, length(trainSGSmoother) - 16)
 allSpectralDataNoCO2 <- c(seq(2, which(names(trainSGSmoother) == 'm2379.76')), 
                           seq(which(names(trainSGSmoother) == 'm2352.76'), length(trainSGSmoother) - 16))
@@ -176,10 +177,58 @@ SGSmootherSpectralDataNoCO2Topsoil <- plotSpectra(10, spectralData = allSpectral
 multiplot(SGSmootherallSpectraSubsoil, SGSmootherallSpectraTopsoil,
           SGSmootherSpectralDataNoCO2Subsoil, SGSmootherSpectralDataNoCO2Topsoil, cols = 2)
 
+#-----------------------------------------------
 #Baseline Correction
-#Savitzky - Golay and Gorry
+#Savitzky - Golay and Gorry with second derivative
+trainSGBasslineCor <- as.data.frame(savitzkyGolay(train[ , allSpectralDataOR], p = 3, w = 11, m = 2))
+trainSGBasslineCor <- cbind(train[ , 'PIDN'], trainSGBasslineCor, train[ , spatialPredictorsOR], train$Depth)
+names(trainSGBasslineCor)[1] <- 'PIDN'
+names(trainSGBasslineCor)[length(trainSGBasslineCor)] <- 'Depth'
+
+#Spectra / CO2 and others
+CO2Signal <- seq(which(names(trainSGBasslineCor) == 'm2379.76'), which(names(trainSGBasslineCor) == 'm2352.76'))
+allSpectralData <- seq(2, length(trainSGBasslineCor) - 16)
+allSpectralDataNoCO2 <- c(seq(2, which(names(trainSGBasslineCor) == 'm2379.76')), 
+                          seq(which(names(trainSGBasslineCor) == 'm2352.76'), length(trainSGBasslineCor) - 16))
+spatialPredictors <- seq(which(names(trainSGBasslineCor) == 'BSAN'), which(names(trainSGBasslineCor) == 'TMFI'))
+depthIx <- which(names(trainSGBasslineCor) == 'Depth')
+
+#Subsoil all spectra
+SGBassallSpectraSubsoil <- plotSpectra(10, spectralData = allSpectralData, subsample = which(trainSGBasslineCor$Depth == 0), trainSGBasslineCor)
+#Topsoil all spectra
+SGBassallSpectraTopsoil <- plotSpectra(10, spectralData = allSpectralData, subsample = which(trainSGBasslineCor$Depth == 1), trainSGBasslineCor)
+#Subsoil no CO2
+SGBassSpectralDataNoCO2Subsoil <- plotSpectra(10, spectralData = allSpectralDataNoCO2, subsample = which(trainSGBasslineCor$Depth == 0), trainSGBasslineCor)
+#Topsoil no CO2
+SGBassSpectralDataNoCO2Topsoil <- plotSpectra(10, spectralData = allSpectralDataNoCO2, subsample = which(trainSGBasslineCor$Depth == 1), trainSGBasslineCor)
+
+multiplot(SGBassallSpectraSubsoil, SGBassallSpectraTopsoil,
+          SGBassSpectralDataNoCO2Subsoil, SGBassSpectralDataNoCO2Topsoil, cols = 2)
 
 #MSC (Multiplicative Scatter Correction)
+trainMSC <- as.data.frame(msc(as.matrix(train[ , allSpectralDataOR])))
+trainMSC <- cbind(train[ , 'PIDN'], trainMSC, train[ , spatialPredictorsOR], train$Depth)
+names(trainMSC)[1] <- 'PIDN'
+names(trainMSC)[length(trainMSC)] <- 'Depth'
+
+#Spectra / CO2 and others
+CO2Signal <- seq(which(names(trainMSC) == 'm2379.76'), which(names(trainMSC) == 'm2352.76'))
+allSpectralData <- seq(2, length(trainMSC) - 16)
+allSpectralDataNoCO2 <- c(seq(2, which(names(trainMSC) == 'm2379.76')), 
+                          seq(which(names(trainMSC) == 'm2352.76'), length(trainMSC) - 16))
+spatialPredictors <- seq(which(names(trainMSC) == 'BSAN'), which(names(trainMSC) == 'TMFI'))
+depthIx <- which(names(trainMSC) == 'Depth')
+
+#Subsoil all spectra
+MSCSpectraSubsoil <- plotSpectra(10, spectralData = allSpectralData, subsample = which(trainMSC$Depth == 0), trainMSC)
+#Topsoil all spectra
+MSCSpectraTopsoil <- plotSpectra(10, spectralData = allSpectralData, subsample = which(trainMSC$Depth == 1), trainMSC)
+#Subsoil no CO2
+MSCSpectraNoCO2Subsoil <- plotSpectra(10, spectralData = allSpectralDataNoCO2, subsample = which(trainMSC$Depth == 0), trainMSC)
+#Topsoil no CO2
+MSCSpectraNoCO2Topsoil <- plotSpectra(10, spectralData = allSpectralDataNoCO2, subsample = which(trainMSC$Depth == 1), trainMSC)
+
+multiplot(MSCSpectraSubsoil, MSCSpectraTopsoil, MSCSpectraNoCO2Subsoil, MSCSpectraNoCO2Topsoil, cols = 2)
 
 #Asymmetric Least Squares
 trainALS <- as.data.frame(baseline.corr(train[ , allSpectralDataOR]))
@@ -207,8 +256,7 @@ ALSDataNoCO2Topsoil <- plotSpectra(10, spectralData = allSpectralDataNoCO2, subs
 multiplot(ALSSpectraSubsoil, ALSSpectraTopsoil, ALSDataNoCO2Subsoil, ALSDataNoCO2Topsoil, cols = 2)
 
 #--------------------------------
-#Scaling
-
+#Variable Scaling
 
 
 ################################
@@ -226,6 +274,76 @@ Sandgg <- ggplot(data = train, aes(x = Sand)) +  geom_histogram()
 
 multiplot(Cagg, Pgg, pHgg, SOCgg, Sandgg, cols = 3)
 
+###################################################
+#Data Smoothing and Baseine Correction
+#Train Data
+#Running Polinomial Smoother (Savitzky-Golay filtering)
+trainSGSmoother <- as.data.frame(savitzkyGolay(train[ , allSpectralDataOR], p = 3, w = 11, m = 0))
+trainSGSmoother <- cbind(train[ , 'PIDN'], trainSGSmoother, train[ , spatialPredictorsOR], train$Depth)
+names(trainSGSmoother)[1] <- 'PIDN'
+names(trainSGSmoother)[length(trainSGSmoother)] <- 'Depth'
+
+#Spectra / CO2 and others
+CO2Signal <- seq(which(names(trainSGSmoother) == 'm2379.76'), which(names(trainSGSmoother) == 'm2352.76'))
+allSpectralData <- seq(2, length(trainSGSmoother) - 16)
+allSpectralDataNoCO2 <- c(seq(2, which(names(trainSGSmoother) == 'm2379.76')), 
+                          seq(which(names(trainSGSmoother) == 'm2352.76'), length(trainSGSmoother) - 16))
+spatialPredictors <- seq(which(names(trainSGSmoother) == 'BSAN'), which(names(trainSGSmoother) == 'TMFI'))
+depthIx <- which(names(trainSGSmoother) == 'Depth')
+
+trainALSSGS <- as.data.frame(baseline.corr(trainSGSmoother[ , allSpectralData]))
+trainALSSGS <- cbind(train[ , 'PIDN'], trainALSSGS, train[ , spatialPredictorsOR], train$Depth, train[ , c('Ca', 'P', 'pH', 'SOC', 'Sand')])
+names(trainALSSGS)[1] <- 'PIDN'
+names(trainALSSGS)[length(trainALSSGS) - 5] <- 'Depth'
+
+#Make a Shuffled CSV to train h2o models
+set.seed(1011)
+randomSubset <- sample.int(nrow(trainALSSGS), nrow(trainALSSGS)) #full data
+trainALSSGS <- trainALSSGS[randomSubset, ]
+trainALSSGS$P <- log(trainALSSGS$P + 2)
+write.csv(trainALSSGS, file = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'), row.names = FALSE)
+
+#Spectra / CO2 and others
+CO2Signal <- seq(which(names(trainALSSGS) == 'm2379.76'), which(names(trainALSSGS) == 'm2352.76'))
+allSpectralData <- seq(2, length(trainALSSGS) - 16)
+allSpectralDataNoCO2 <- c(seq(2, which(names(trainALSSGS) == 'm2379.76')), 
+                          seq(which(names(trainALSSGS) == 'm2352.76'), length(trainALSSGS) - 16))
+spatialPredictors <- seq(which(names(trainALSSGS) == 'BSAN'), which(names(trainALSSGS) == 'TMFI'))
+depthIx <- which(names(trainALSSGS) == 'Depth')
+
+#Subsoil all spectra
+ALSSGSSpectraSubsoil <- plotSpectra(10, spectralData = allSpectralData, subsample = which(trainALSSGS$Depth == 0), trainALSSGS)
+#Topsoil all spectra
+ALSSGSSpectraTopsoil <- plotSpectra(10, spectralData = allSpectralData, subsample = which(trainALSSGS$Depth == 1), trainALSSGS)
+#Subsoil no CO2
+ALSSGSDataNoCO2Subsoil <- plotSpectra(10, spectralData = allSpectralDataNoCO2, subsample = which(trainALSSGS$Depth == 0), trainALSSGS)
+#Topsoil no CO2
+ALSSGSDataNoCO2Topsoil <- plotSpectra(10, spectralData = allSpectralDataNoCO2, subsample = which(trainALSSGS$Depth == 1), trainALSSGS)
+
+multiplot(ALSSGSSpectraSubsoil, ALSSGSSpectraTopsoil, ALSSGSDataNoCO2Subsoil, ALSSGSDataNoCO2Topsoil, cols = 2)
+
+#Test Data
+#Running Polinomial Smoother (Savitzky-Golay filtering)
+testSGSmoother <- as.data.frame(savitzkyGolay(test[ , allSpectralDataOR], p = 3, w = 11, m = 0))
+testSGSmoother <- cbind(test[ , 'PIDN'], testSGSmoother, test[ , spatialPredictorsOR], test$Depth)
+names(testSGSmoother)[1] <- 'PIDN'
+names(testSGSmoother)[length(testSGSmoother)] <- 'Depth'
+
+#Spectra / CO2 and others
+CO2Signal <- seq(which(names(testSGSmoother) == 'm2379.76'), which(names(testSGSmoother) == 'm2352.76'))
+allSpectralData <- seq(2, length(testSGSmoother) - 16)
+allSpectralDataNoCO2 <- c(seq(2, which(names(testSGSmoother) == 'm2379.76')), 
+                          seq(which(names(testSGSmoother) == 'm2352.76'), length(testSGSmoother) - 16))
+spatialPredictors <- seq(which(names(testSGSmoother) == 'BSAN'), which(names(testSGSmoother) == 'TMFI'))
+depthIx <- which(names(testSGSmoother) == 'Depth')
+
+testALSSGS <- as.data.frame(baseline.corr(testSGSmoother[ , allSpectralData]))
+testALSSGS <- cbind(test[ , 'PIDN'], testALSSGS, test[ , spatialPredictorsOR], test$Depth)
+names(testALSSGS)[1] <- 'PIDN'
+names(testALSSGS)[length(testALSSGS)] <- 'Depth'
+
+#Make CSV to test h2o models
+write.csv(testALSSGS, file = paste0(dataDirectory, 'testALSSGS.csv'), row.names = FALSE)
 ###################################################
 #MODELLING
 #GBM
@@ -337,7 +455,7 @@ treesSand <- treeFinder(gbmMODSand$finalModel, dataNew = train[randomSubset , c(
 #Create an h2o parsed data
 require('h2o')
 localH2O = h2o.init(ip = "localhost", port = 54321, max_mem_size = '4g', startH2O = TRUE)
-africa.hex = h2o.importFile(localH2O, path = paste0(dataDirectory, 'trainingShuffled.csv'))
+africa.hex = h2o.importFile(localH2O, path = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'))
 
 #data frames as h2o / not necesary h2o is reading directly from .csv files
 #trainh2o <- as.h2o(localH2O, train, key = 'PIDN')
@@ -389,7 +507,7 @@ GBMModeSand <- h2o.gbm(x = seq(2, 3595),
 plot(GBMModeSand)
 ##########################################################
 #PREDICTIONS
-africaTest.hex = h2o.importFile(localH2O, path = paste0(dataDirectory, 'testNumeric.csv'))
+africaTest.hex = h2o.importFile(localH2O, path = paste0(dataDirectory, 'testALSSGS.csv'))
 #Ca
 GBMPredictionCa <- as.data.frame(h2o.predict(GBMModelCa, newdata = africaTest.hex))
 #P
@@ -418,7 +536,7 @@ write.csv(submissionTemplate, file = "PredictionGBMI.csv", row.names = FALSE)
 #Create an h2o parsed data
 require('h2o')
 localH2O <- h2o.init(ip = "localhost", port = 54321, max_mem_size = '1g', startH2O = TRUE)
-africa.hex <- h2o.importFile(localH2O, path = paste0(dataDirectory, 'trainingShuffled.csv'))
+africa.hex <- h2o.importFile(localH2O, path = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'))
 
 ##################################################################################
 CO2Signal <- seq(which(names(africa.hex) == 'm2379.76'), which(names(africa.hex) == 'm2352.76'))
@@ -435,28 +553,23 @@ depthIx <- which(names(africa.hex) == 'Depth')
 h2o.shutdown(localH2O, prompt = FALSE)
 
 #########################################################
-#ICA
-trainMatrix <- model.matrix(~ . , data = train[ , allSpectralDataNoCO2]) 
-derp <- fastICA(trainMatrix, method = 'C', n.comp = 200, verbose = TRUE)
-derpa <- icafast(trainMatrix, 200)
-
-#new hyperparameter search
-hyperParametersAllSpectra <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingShuffled.csv'),
+#hyperparameter search
+hyperParametersAllSpectra <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'),
                                                             predictorsCols = allSpectralData,
                                                             noOfEpochs = 6, maxMem = '5g')
-hyperParametersSpectraNoCO2 <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingShuffled.csv'),
+hyperParametersSpectraNoCO2 <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'),
                                                               predictorsCols = allSpectralDataNoCO2,
                                                               noOfEpochs = 6, maxMem = '5g')
-hyperParametersAllSpectraDepth <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingShuffled.csv'),
+hyperParametersAllSpectraDepth <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'),
                                                                  predictorsCols = c(allSpectralData, depthIx), 
                                                                  noOfEpochs = 6, maxMem = '5g')
-hyperParametersSpectraNoCO2Depth <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingShuffled.csv'),
+hyperParametersSpectraNoCO2Depth <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'),
                                                                    predictorsCols = c(allSpectralDataNoCO2, depthIx),
                                                                    noOfEpochs = 6, maxMem = '5g')
-hyperParametersAllData <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingShuffled.csv'),
+hyperParametersAllData <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'),
                                                          predictorsCols = c(allSpectralData, spatialPredictors, depthIx),
                                                          noOfEpochs = 6, maxMem = '5g')
-hyperParametersAllDataNoCO2 <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingShuffled.csv'),
+hyperParametersAllDataNoCO2 <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'),
                                                               predictorsCols = c(allSpectralDataNoCO2, spatialPredictors, depthIx),
                                                               noOfEpochs = 6, maxMem = '5g')
 
@@ -469,9 +582,9 @@ gridLs <- expand.grid(c(0, 1e-5, 1e-3), c(0, 1e-5, 1e-3), stringsAsFactors = TRU
 #Create an h2o parsed data
 require('h2o')
 localH2O <- h2o.init(ip = "localhost", port = 54321, max_mem_size = '5g', startH2O = TRUE)
-africa.hex <- h2o.importFile(localH2O, path = paste0(dataDirectory, 'trainingShuffled.csv'))
+africa.hex <- h2o.importFile(localH2O, path = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'))
 #Test Data
-africaTest.hex = h2o.importFile(localH2O, path = paste0(dataDirectory, 'testNumeric.csv'))
+africaTest.hex = h2o.importFile(localH2O, path = paste0(dataDirectory, 'testALSSGS.csv'))
 
 DeepNNModelCa <- h2o.deeplearning(x = c(allSpectralDataNoCO2, spatialPredictors, depthIx),
                                   y = hyperParametersAllDataNoCO2[[1]][1, 'predCol'],
