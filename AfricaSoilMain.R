@@ -305,9 +305,9 @@ write.csv(trainALSSGS, file = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'
 
 #Spectra / CO2 and others
 CO2Signal <- seq(which(names(trainALSSGS) == 'm2379.76'), which(names(trainALSSGS) == 'm2352.76'))
-allSpectralData <- seq(2, length(trainALSSGS) - 16)
+allSpectralData <- seq(2, length(trainALSSGS) - 21)
 allSpectralDataNoCO2 <- c(seq(2, which(names(trainALSSGS) == 'm2379.76')), 
-                          seq(which(names(trainALSSGS) == 'm2352.76'), length(trainALSSGS) - 16))
+                          seq(which(names(trainALSSGS) == 'm2352.76'), length(trainALSSGS) - 21))
 spatialPredictors <- seq(which(names(trainALSSGS) == 'BSAN'), which(names(trainALSSGS) == 'TMFI'))
 depthIx <- which(names(trainALSSGS) == 'Depth')
 
@@ -541,9 +541,9 @@ africa.hex <- h2o.importFile(localH2O, path = paste0(dataDirectory, 'trainingALS
 ##################################################################################
 CO2Signal <- seq(which(names(africa.hex) == 'm2379.76'), which(names(africa.hex) == 'm2352.76'))
 
-allSpectralData <- seq(2, 3579)
+allSpectralData <- seq(2, length(africa.hex) - 21)
 allSpectralDataNoCO2 <- c(seq(2, which(names(africa.hex) == 'm2379.76')), 
-                          seq(which(names(africa.hex) == 'm2352.76'), 3579))
+                          seq(which(names(africa.hex) == 'm2352.76'), length(africa.hex) - 21))
 
 spatialPredictors <- seq(which(names(africa.hex) == 'BSAN'), which(names(africa.hex) == 'TMFI'))
 depthIx <- which(names(africa.hex) == 'Depth')
@@ -556,25 +556,25 @@ h2o.shutdown(localH2O, prompt = FALSE)
 #hyperparameter search
 hyperParametersAllSpectra <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'),
                                                             predictorsCols = allSpectralData,
-                                                            noOfEpochs = 6, maxMem = '5g')
+                                                            maxMem = '5g')
 hyperParametersSpectraNoCO2 <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'),
                                                               predictorsCols = allSpectralDataNoCO2,
-                                                              noOfEpochs = 6, maxMem = '5g')
+                                                              maxMem = '5g')
 hyperParametersAllSpectraDepth <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'),
                                                                  predictorsCols = c(allSpectralData, depthIx), 
-                                                                 noOfEpochs = 6, maxMem = '5g')
+                                                                 maxMem = '5g')
 hyperParametersSpectraNoCO2Depth <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'),
                                                                    predictorsCols = c(allSpectralDataNoCO2, depthIx),
-                                                                   noOfEpochs = 6, maxMem = '5g')
+                                                                   maxMem = '5g')
 hyperParametersAllData <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'),
                                                          predictorsCols = c(allSpectralData, spatialPredictors, depthIx),
-                                                         noOfEpochs = 6, maxMem = '5g')
+                                                         maxMem = '5g')
 hyperParametersAllDataNoCO2 <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'),
                                                               predictorsCols = c(allSpectralDataNoCO2, spatialPredictors, depthIx),
-                                                              noOfEpochs = 6, maxMem = '5g')
+                                                              maxMem = '5g')
 
 noDropout <- c('Rectifier', 'Tanh', 'Maxout')
-hidden_layers = list(c(50, 50), c(100, 100), c(50, 50, 50), c(100, 100, 100))
+hidden_layers = list(c(100, 100), c(200, 200), c(100, 100, 100), c(200, 200, 200))
 gridAda <- expand.grid(c(0.9, 0.95, 0.99), c(1e-12, 1e-10, 1e-8, 1e-6), stringsAsFactors = TRUE) #this creates all possible combinations
 gridLs <- expand.grid(c(0, 1e-5, 1e-3), c(0, 1e-5, 1e-3), stringsAsFactors = TRUE) #this creates all possible combinations
 

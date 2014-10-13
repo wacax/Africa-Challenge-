@@ -1,6 +1,6 @@
 gridCrossValidationh2oDeepnets <- function(DataDir, 
                                            predictorsCols = 1:dim(as.data.frame(DataDir))[2],
-                                           noOfEpochs = 5, nFolds = 5, printScore = TRUE, maxMem = '1g'){
+                                           nFolds = 5, printScore = TRUE, maxMem = '1g'){
   
   require('h2o')
   require('Metrics')
@@ -31,10 +31,10 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
                                   classification = FALSE, balance_classes = FALSE, 
                                   validation = splitObject[[1]][folds == k, ], 
                                   activation = actvs,
-                                  hidden = c(30, 30),
+                                  hidden = c(50, 50),
                                   input_dropout_ratio = 0,
                                   l2 = ifelse(actvs == 'Rectifier' | actvs == 'Tanh', 1e-5, 0),
-                                  epochs = noOfEpochs)  
+                                  epochs = 10)  
         
         Prediction <- unlist(as.data.frame(h2o.predict(model, newdata = splitObject[[1]][folds == k, ])))
         RMSEError <- rmse(targets80[folds == k, target], Prediction)
@@ -51,7 +51,7 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
   optimalParameters <- cbind(predCol, optimalActivations)
   
   #Create a set of network topologies
-  hidden_layers = list(c(50, 50), c(100, 100), c(50, 50, 50), c(100, 100, 100))
+  hidden_layers = list(c(100, 100), c(200, 200), c(100, 100, 100), c(200, 200, 200))
   
   optimalArchitecture <- apply(optimalParameters, 1, function(parameters){
     activationsErrors <- lapply(hidden_layers, function(architecture){
@@ -69,7 +69,7 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
                                   hidden = architecture,
                                   input_dropout_ratio = 0,
                                   l2 = ifelse(parameters[2] == 'Rectifier' | parameters[2] == 'Tanh', 1e-5, 0),
-                                  epochs = noOfEpochs * 2)  
+                                  epochs = architecture[1]/5 * length(architecture))  
         
         Prediction <- unlist(as.data.frame(h2o.predict(model, newdata = splitObject[[1]][folds == k, ])))
         RMSEError <- rmse(targets80[folds == k, parameters[1]], Prediction)
@@ -109,7 +109,7 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
                                   epsilon = as.numeric(adaDelta[2]),
                                   input_dropout_ratio = 0,
                                   l2 = ifelse(parameters[2] == 'Rectifier' | parameters[2] == 'Tanh', 1e-5, 0),
-                                  epochs = noOfEpochs * 2)  
+                                  epochs = hidden_layers[[as.numeric(parameters[3])]][1]/5 * length(hidden_layers[[as.numeric(parameters[3])]]))  
         
         Prediction <- unlist(as.data.frame(h2o.predict(model, newdata = splitObject[[1]][folds == k, ])))
         RMSEError <- rmse(targets80[folds == k, parameters[1]], Prediction)         
@@ -152,7 +152,7 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
                                   input_dropout_ratio = 0,
                                   l1 = as.numeric(L[1]),
                                   l2 = as.numeric(L[2]),
-                                  epochs = noOfEpochs * 2)  
+                                  epochs = hidden_layers[[as.numeric(parameters[3])]][1]/5 * length(hidden_layers[[as.numeric(parameters[3])]]))  
         
         Prediction <- unlist(as.data.frame(h2o.predict(model, newdata = splitObject[[1]][folds == k, ])))
         RMSEError <- rmse(targets80[folds == k, parameters[1]], Prediction)         
@@ -188,7 +188,7 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
                                 input_dropout_ratio = 0,
                                 l1 = gridLs[as.numeric(parameters[5]), 1],
                                 l2 = gridLs[as.numeric(parameters[5]), 2],
-                                epochs = noOfEpochs * 4)  
+                                epochs = hidden_layers[[as.numeric(parameters[3])]][1]/5 * length(hidden_layers[[as.numeric(parameters[3])]]))  
       
       Prediction <- unlist(as.data.frame(h2o.predict(model, newdata = splitObject[[2]])))
       if(parameters[1] != 'P'){

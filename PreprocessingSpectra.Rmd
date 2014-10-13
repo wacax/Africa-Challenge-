@@ -1,6 +1,12 @@
+---
+title: "AfSIS Soil Spectra Preprocessing"
+author: "Mario Vivero"
+date: "12/10/2014"
+output: html_document
+---
 AfSIS Soil Spectra Preprocessing
 ========================================================
-This article is meant as a guide to spectra preprocessing based on two introductory books: Chemometrics - A Prectical Guide by Beebe at. al. and Chemometrics with R by Wehrens using the data from the Africa Soil Property Prediction Challenge which can be downloaded on: http://www.kaggle.com/c/afsis-soil-properties/data
+This article is meant as a guide to spectra preprocessing based on two introductory books: Chemometrics - A Practical Guide by Beebe at. al. and Chemometrics with R by Wehrens using the data from the Africa Soil Property Prediction Challenge which can be downloaded on: http://www.kaggle.com/c/afsis-soil-properties/data
 
 
 According to Wikipedia, signal preprocessing in chemometrics is also a critical component of almost all chemometric applications, particularly the use of signal pretreatments to condition data prior to calibration or classification. The techniques employed commonly in chemometrics are often closely related to those used in related fields[1]. Meaning that many of the techniques applied here can be also be applied to other areas. In my personal experience I've encountered spectral analysis in two areas: Neuroscience and Finance (Stock Markets) for which I am aware of the importance of signal preprocessing because an algorithm will output better results when the data does not contain noise and is corrected, even nowadays with advanced algorithms such as deep neural networks.
@@ -94,7 +100,7 @@ multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
 ```
 Smoothing
 ------------
-Smoothing is an important step because it attempts to remove noise. Noise is usually assumed to be high frecuency data injected to the signal. First we will start visualizing the raw data for comparison.
+Smoothing is an important step because it attempts to remove noise. Noise is usually assumed to be high frequency data injected to the signal. First we will start visualizing the raw data for comparison.
 
 ```{r fig.width=16, fig.height=16}
 #Signal Processing
@@ -116,7 +122,7 @@ SpectralDataNoCO2Topsoil <- plotSpectra(10, spectralData = allSpectralDataNoCO2O
 
 multiplot(allSpectraSubsoil, allSpectraTopsoil, SpectralDataNoCO2Subsoil, SpectralDataNoCO2Topsoil, cols = 2)
 ```
-The first and most obvious smoothing transformation that also can be used as dimensionality reduction is Binning. Averaging a certain amount of neighboring frecuencies results also in smoothed data. This is the first method that uses a certain window to perform its average, the wider the window the smoother the result. If a window is to big then some features that weren't originally noise can dissapear. Here I will show binning with a window of 11 and with a window of 50. The binning function can be found in the *prospectr* package, as "binning".
+The first and most obvious smoothing transformation that also can be used as dimensional reduction is Binning. Averaging a certain amount of neighboring frequencies results also in smoothed data. This is the first method that uses a certain window to perform its average, the wider the window the smoother the result. If a window is to big then some features that weren't originally noise can dissapear. Here I will show binning with a window of 11 and with a window of 50. The binning function can be found in the *prospectr* package, as "binning".
 
 ```{r fig.width=16, fig.height=8}
 #Binning
@@ -156,7 +162,7 @@ bin50SmootherallSpectraTopsoil <- plotSpectra(10, spectralData = allSpectralData
 multiplot(bin50SmootherallSpectraSubsoil, bin50SmootherallSpectraSubsoil, cols = 2)
 ```
 
-Next I will implement the Running mean smoother using the running mean smoothing. This will apply an algorithm vey similar to k nearest neighbor. The running mean function can be found in the *prospectr* package, as "movav".
+Next I will implement the Running mean smoother using the running mean smoothing. This will apply an algorithm very similar to k nearest neighbor. The running mean function can be found in the *prospectr* package, as "movav".
 ```{r fig.width=16, fig.height=16}
 
 #Running Mean Smoother
@@ -185,7 +191,7 @@ meanSmootherSpectralDataNoCO2Topsoil <- plotSpectra(10, spectralData = allSpectr
 multiplot(meanSmootherallSpectraSubsoil, meanSmootherallSpectraTopsoil,
           meanSmootherSpectralDataNoCO2Subsoil, meanSmootherSpectralDataNoCO2Topsoil, cols = 2)
 ```
-The most popular polinomial smoother is implemented as part of the Savitzky-Golay filter. The Savitzky-Golay filter can also implement derivatives, since we are only interested in seeing the effects of smoothing on the spectra we will left the parameter "m" which declares the derivative to 0.
+The most popular polynomial smoother is implemented as part of the Savitzky-Golay filter. The Savitzky-Golay filter can also implement derivatives, since we are only interested in seeing the effects of smoothing on the spectra we will left the parameter "m" which declares the derivative to 0.
 
 ```{r fig.width=16, fig.height=16}
 
@@ -215,10 +221,14 @@ SGSmootherSpectralDataNoCO2Topsoil <- plotSpectra(10, spectralData = allSpectral
 multiplot(SGSmootherallSpectraSubsoil, SGSmootherallSpectraTopsoil,
           SGSmootherSpectralDataNoCO2Subsoil, SGSmootherSpectralDataNoCO2Topsoil, cols = 2)
 ```
-Another option is the use of Fourier Filtering. More details on that can be found in  Chemometrics - A Prectical Guide by Beebe at. al. P. 34.
+Another option is the use of Fourier Filtering. More details on that can be found in  Chemometrics - A Practical Guide by Beebe at. al. P. 34.
 
-Libraries, Functions and Data
+Baseline Correction
 ------------
+There are several approaches to Baseline Correction, here I will only include three. For explicit derivative calculations and running differences refer to Chemometrics - A Practical Guide by Beebe at. al. P. 36 - 45.
+
+The recommended implementation by many is the Savitzky - Golay and Gorry with first, second or third derivative. The Savitzky - Golay filter with a derivative can be found in the *prospectr* package, as "savitzkyGolay" with parameter "m" > 0 (m determines the derivative).
+
 ```{r fig.width=16, fig.height=16}
 
 #Baseline Correction
@@ -249,6 +259,8 @@ multiplot(SGBassallSpectraSubsoil, SGBassallSpectraTopsoil,
           SGBassSpectralDataNoCO2Subsoil, SGBassSpectralDataNoCO2Topsoil, cols = 2)
 ```
 
+The Multiplicative Scatter Correction is a preprocessing tool developed to correct the significant light-scattering problems in refrectance spectroscopy. Since then it has been found to be of more general use. Chemometrics - A Practical Guide by Beebe at. al. P. 46. the "msc" function can be found in the *pls* package. 
+
 ```{r fig.width=16, fig.height=16}
 
 #MSC (Multiplicative Scatter Correction)
@@ -276,6 +288,8 @@ MSCSpectraNoCO2Topsoil <- plotSpectra(10, spectralData = allSpectralDataNoCO2, s
 
 multiplot(MSCSpectraSubsoil, MSCSpectraTopsoil, MSCSpectraNoCO2Subsoil, MSCSpectraNoCO2Topsoil, cols = 2)
 ```
+
+Another alternative is to use asymmetric least squares, where deviations above the fitted curve are not taken into account (or only with a very small weight). This is implemented in function baseline.corr in the *ptw* package, which returns a baseline-corrected signal. Internally, it uses the function "asysm"" to estimate the baseline. Chemometrics with R by Wehrens P. 20
 
 ```{r fig.width=16, fig.height=16}
 
@@ -305,8 +319,14 @@ ALSDataNoCO2Topsoil <- plotSpectra(10, spectralData = allSpectralDataNoCO2, subs
 multiplot(ALSSpectraSubsoil, ALSSpectraTopsoil, ALSDataNoCO2Subsoil, ALSDataNoCO2Topsoil, cols = 2)
 ```
 
+Conclusion
+------------
+
+As it can be here seen, picking a certain smoothing procedure plus a baseline correction may be one solution. Another solution can be to use a Savitzky - Golay filter with a derivative in case the baseline doesn't have a very complex shape. The best way to put this is how Wehrens explained it: "Careful data pretreatment is essential – baselines may severely influence the results and should be removed before alignment... Often, the biggest gain in the alignment optimization is achieved by getting the prominent features in the right location. Sometimes, this dominance leads to suboptimal alignments. Also differences in intensity between sample and reference signals can distort the results."
+As it was pointed out earlier, this write-up is only meant as a practical introduction to spectra preprocessing. To further your knowledge about this topic I highly recommend the books in the bibliography where you can find more advanced topics in preprocessing such as dynamic time warping and many others as well as algorithms and calibration tools.
+
 Bibliography
 ------------
 [1]https://en.wikipedia.org/wiki/Chemometrics#Other_techniques
-[2]Beebe at. al., Chemometrics - A Prectical Guide, March 1998, ISBN: 978-0-471-12451-1
+[2]Beebe at. al., Chemometrics - A Practical Guide, March 1998, ISBN: 978-0-471-12451-1
 [3]Wehrens R., Chemometrics with R Multivariate Data Analysis in the Natural Sciences and Life Sciences; 2011; ISBN 978-3-642-17840-5; e-ISBN 978-3-642-17841-2
