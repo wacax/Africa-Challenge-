@@ -3,7 +3,7 @@ AfSIS Soil Spectra Preprocessing
 This article is meant as a guide to spectra preprocessing based on two introductory books: Chemometrics - A Prectical Guide by Beebe at. al. and Chemometrics with R by Wehrens using the data from the Africa Soil Property Prediction Challenge which can be downloaded on: http://www.kaggle.com/c/afsis-soil-properties/data
 
 
-According to Wikipedia, signal preprocessing in chemometrics "is also a critical component of almost all chemometric applications, particularly the use of signal pretreatments to condition data prior to calibration or classification. The techniques employed commonly in chemometrics are often closely related to those used in related fields"[1]. Meaning that many of the techniques applied here can be also be applied to other areas. In my personal experience I've encountered spectral analysis in two areas: Neuroscience and Finance (Stock Markets) for which I am aware of the importance of signal preprocessing because an algorithm will output better results when the data does not contain noise and is corrected, even nowadays with advanced algorithms such as deep neural networks.
+According to Wikipedia, signal preprocessing in chemometrics is also a critical component of almost all chemometric applications, particularly the use of signal pretreatments to condition data prior to calibration or classification. The techniques employed commonly in chemometrics are often closely related to those used in related fields[1]. Meaning that many of the techniques applied here can be also be applied to other areas. In my personal experience I've encountered spectral analysis in two areas: Neuroscience and Finance (Stock Markets) for which I am aware of the importance of signal preprocessing because an algorithm will output better results when the data does not contain noise and is corrected, even nowadays with advanced algorithms such as deep neural networks.
 
 Deep neural networks (H20 implementation - http://h2o.ai/) were tested with and without spectra preprocessing. Deep neural nets with spectra preprocessing, even a simple method were superior than the results without preprocessing. Said process will not be shown here since that is not the goal of this article. For a pure "Deep Learning" solution please refer to the section about deep autoencoders found on:
 http://deeplearning.net/tutorial/dA.html#daa
@@ -34,9 +34,9 @@ test <- transform(test, Depth = as.numeric(as.factor(test$Depth)) - 1)
 
 ```
 In order to display grid plots using ggplot2 we are going to need two additional functions found on:
-*http://www.kaggle.com/c/afsis-soil-properties/forums/t/10184/first-derivative*
+http://www.kaggle.com/c/afsis-soil-properties/forums/t/10184/first-derivative
 and
-*http://www.cookbook-r.com/Graphs/Multiple_graphs_on_one_page_%28ggplot2%29/*
+http://www.cookbook-r.com/Graphs/Multiple_graphs_on_one_page_%28ggplot2%29/
 after this, we will be ready to start exploring the effects of preprocessing in our data.
 
 ```{r results='hide'}
@@ -94,19 +94,9 @@ multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
 ```
 Smoothing
 ------------
-Smoothing is an important step because it attempts to remove noise. Noise is usually assumed to be high frecuency data injected to the signal. 
+Smoothing is an important step because it attempts to remove noise. Noise is usually assumed to be high frecuency data injected to the signal. First we will start visualizing the raw data for comparison.
 
-#Transform it to H2O compatible file
-#Make a Shuffled CSV to train h2o models
-set.seed(1010)
-randomSubset <- sample.int(nrow(train), nrow(train)) #full data
-trainShuffled <- train[randomSubset, ]
-trainShuffled$P <- log(trainShuffled$P + 2)
-write.csv(trainShuffled, file = paste0(dataDirectory, 'trainingShuffled.csv'), row.names = FALSE)
-
-#Test Data
-write.csv(test, file = paste0(dataDirectory, 'testNumeric.csv'), row.names = FALSE)
-
+```{r fig.width=16, fig.height=16}
 #Signal Processing
 #Spectra / CO2 and others
 CO2SignalOR <- seq(which(names(train) == 'm2379.76'), which(names(train) == 'm2352.76'))
@@ -115,9 +105,6 @@ allSpectralDataNoCO2OR <- c(seq(which(names(train) == 'm7497.96'), which(names(t
                             seq(which(names(train) == 'm2352.76'), which(names(train) == 'm599.76')))
 spatialPredictorsOR <- seq(which(names(train) == 'BSAN'), which(names(train) == 'TMFI'))
 depthIxOR <- which(names(train) == 'Depth')
-
-
-
 #Subsoil all spectra
 allSpectraSubsoil <- plotSpectra(10, spectralData = allSpectralDataOR, subsample = which(train$Depth == 0), train)
 #Topsoil all spectra
@@ -128,12 +115,12 @@ SpectralDataNoCO2Subsoil <- plotSpectra(10, spectralData = allSpectralDataNoCO2O
 SpectralDataNoCO2Topsoil <- plotSpectra(10, spectralData = allSpectralDataNoCO2OR, subsample = which(train$Depth == 1), train)
 
 multiplot(allSpectraSubsoil, allSpectraTopsoil, SpectralDataNoCO2Subsoil, SpectralDataNoCO2Topsoil, cols = 2)
+```
+The first and most obvious smoothing transformation that also can be used as dimensionality reduction is Binning. Averaging a certain amount of neighboring frecuencies results also in smoothed data. This is the first method that uses a certain window to perform its average, the wider the window the smoother the result. If a window is to big then some features that weren't originally noise can dissapear. Here I will show binning with a window of 11 and with a window of 50. The binning function can be found in the *prospectr* package, as "binning".
 
-#--------------------------------
-#Transformations
-#Smoothing
+```{r fig.width=16, fig.height=8}
 #Binning
-#w/ 11 bins
+#w/ bins of window 11
 trainBin11 <- binning(train[ , allSpectralDataOR], bin.size=10)
 trainBin11 <- cbind(train[ , 'PIDN'], trainBin11, train[ , spatialPredictorsOR], train$Depth)
 names(trainBin11)[1] <- 'PIDN'
@@ -148,8 +135,11 @@ bin11SmootherallSpectraSubsoil <- plotSpectra(10, spectralData = allSpectralData
 bin11SmootherallSpectraTopsoil <- plotSpectra(10, spectralData = allSpectralData, subsample = which(trainBin11$Depth == 1), trainBin11)
 
 multiplot(bin11SmootherallSpectraSubsoil, bin11SmootherallSpectraTopsoil, cols = 2)
+```
 
-#w/ 50 bins
+```{r fig.width=16, fig.height=8}
+
+#w/ bins of window 50
 trainBin50 <- binning(train[ , allSpectralDataOR], bin.size=50)
 trainBin50 <- cbind(train[ , 'PIDN'], trainBin50, train[ , spatialPredictorsOR], train$Depth)
 names(trainBin50)[1] <- 'PIDN'
@@ -164,6 +154,10 @@ bin50SmootherallSpectraSubsoil <- plotSpectra(10, spectralData = allSpectralData
 bin50SmootherallSpectraTopsoil <- plotSpectra(10, spectralData = allSpectralData, subsample = which(trainBin50$Depth == 1), trainBin50)
 
 multiplot(bin50SmootherallSpectraSubsoil, bin50SmootherallSpectraSubsoil, cols = 2)
+```
+
+Next I will implement the Running mean smoother using the running mean smoothing. This will apply an algorithm vey similar to k nearest neighbor. The running mean function can be found in the *prospectr* package, as "movav".
+```{r fig.width=16, fig.height=16}
 
 #Running Mean Smoother
 trainMeanSmoother <- as.data.frame(movav(train[ , allSpectralDataOR], w = 11))
@@ -190,6 +184,10 @@ meanSmootherSpectralDataNoCO2Topsoil <- plotSpectra(10, spectralData = allSpectr
 
 multiplot(meanSmootherallSpectraSubsoil, meanSmootherallSpectraTopsoil,
           meanSmootherSpectralDataNoCO2Subsoil, meanSmootherSpectralDataNoCO2Topsoil, cols = 2)
+```
+The most popular polinomial smoother is implemented as part of the Savitzky-Golay filter. The Savitzky-Golay filter can also implement derivatives, since we are only interested in seeing the effects of smoothing on the spectra we will left the parameter "m" which declares the derivative to 0.
+
+```{r fig.width=16, fig.height=16}
 
 #Running Polinomial Smoother (Savitzky-Golay filtering)
 trainSGSmoother <- as.data.frame(savitzkyGolay(train[ , allSpectralDataOR], p = 3, w = 11, m = 0))
@@ -216,6 +214,12 @@ SGSmootherSpectralDataNoCO2Topsoil <- plotSpectra(10, spectralData = allSpectral
 
 multiplot(SGSmootherallSpectraSubsoil, SGSmootherallSpectraTopsoil,
           SGSmootherSpectralDataNoCO2Subsoil, SGSmootherSpectralDataNoCO2Topsoil, cols = 2)
+```
+Another option is the use of Fourier Filtering. More details on that can be found in  Chemometrics - A Prectical Guide by Beebe at. al. P. 34.
+
+Libraries, Functions and Data
+------------
+```{r fig.width=16, fig.height=16}
 
 #Baseline Correction
 #Savitzky - Golay and Gorry with second dderivative
@@ -243,7 +247,9 @@ SGBassSpectralDataNoCO2Topsoil <- plotSpectra(10, spectralData = allSpectralData
 
 multiplot(SGBassallSpectraSubsoil, SGBassallSpectraTopsoil,
           SGBassSpectralDataNoCO2Subsoil, SGBassSpectralDataNoCO2Topsoil, cols = 2)
+```
 
+```{r fig.width=16, fig.height=16}
 
 #MSC (Multiplicative Scatter Correction)
 trainMSC <- as.data.frame(msc(as.matrix(train[ , allSpectralDataOR])))
@@ -269,6 +275,9 @@ MSCSpectraNoCO2Subsoil <- plotSpectra(10, spectralData = allSpectralDataNoCO2, s
 MSCSpectraNoCO2Topsoil <- plotSpectra(10, spectralData = allSpectralDataNoCO2, subsample = which(trainMSC$Depth == 1), trainMSC)
 
 multiplot(MSCSpectraSubsoil, MSCSpectraTopsoil, MSCSpectraNoCO2Subsoil, MSCSpectraNoCO2Topsoil, cols = 2)
+```
+
+```{r fig.width=16, fig.height=16}
 
 #Asymmetric Least Squares
 trainALS <- as.data.frame(baseline.corr(train[ , allSpectralDataOR]))
@@ -294,6 +303,7 @@ ALSDataNoCO2Subsoil <- plotSpectra(10, spectralData = allSpectralDataNoCO2, subs
 ALSDataNoCO2Topsoil <- plotSpectra(10, spectralData = allSpectralDataNoCO2, subsample = which(trainALS$Depth == 1), trainALS)
 
 multiplot(ALSSpectraSubsoil, ALSSpectraTopsoil, ALSDataNoCO2Subsoil, ALSDataNoCO2Topsoil, cols = 2)
+```
 
 Bibliography
 ------------
