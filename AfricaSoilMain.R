@@ -347,20 +347,30 @@ write.csv(testALSSGS, file = paste0(dataDirectory, 'testALSSGS.csv'), row.names 
 ###################################################
 #MODELLING
 #GBM
+train <- read.csv(paste0(dataDirectory, 'trainingALSSGSShuffled.csv'), header = TRUE, stringsAsFactors = FALSE)
+
+#Spectra / CO2 and others
+CO2Signal <- seq(which(names(train) == 'm2379.76'), which(names(train) == 'm2352.76'))
+allSpectralData <- seq(2, length(train) - 21)
+allSpectralDataNoCO2 <- c(seq(2, which(names(train) == 'm2379.76')), 
+                          seq(which(names(train) == 'm2352.76'), length(train) - 21))
+spatialPredictors <- seq(which(names(train) == 'BSAN'), which(names(train) == 'TMFI'))
+depthIx <- which(names(train) == 'Depth')
+
 #Cross Validation Control Params
 GBMControl <- trainControl(method = "cv",
                            number = 5,
                            verboseIter = TRUE)
 
 gbmGrid <- expand.grid(.interaction.depth = c(3, 5),
-                       .shrinkage = c(0.001, 0.003, 0.01), 
-                       .n.trees = 2000)
+                       .shrinkage = c(0.003, 0.01), 
+                       .n.trees = 1000)
 
 #Hiper parameter 5-fold Cross-validation "Ca"
 set.seed(1005)
 randomSubset <- sample.int(nrow(train), nrow(train)) #full data
 gbmMODCa <- train(form = Ca~., 
-                  data = train[randomSubset , seq(2, 3596)],
+                  data = train[randomSubset , c(allSpectralDataNoCO2, spatialPredictors, depthIx, 3586)],
                   method = "gbm",
                   tuneGrid = gbmGrid,
                   trControl = GBMControl,
@@ -372,14 +382,14 @@ gbmMODCa <- train(form = Ca~.,
 ggplot(gbmMODCa)  + theme(legend.position = "top")
 
 #Find optimal number of trees
-treesCa <- treeFinder(gbmMODCa$finalModel, dataNew = train[randomSubset , seq(2, 3596)])
+treesCa <- treeFinder(gbmMODCa$finalModel, dataNew = train[randomSubset , c(allSpectralDataNoCO2, spatialPredictors, depthIx, 3586)])
 
 #---------------------------------------------------------------
 #Hiper parameter 5-fold Cross-validation "P"
 set.seed(1006)
 randomSubset <- sample.int(nrow(train), nrow(train)) #full data
-gbmMODP <- train(form = log(P + 2) ~ ., 
-                 data = train[randomSubset , c(seq(2, 3595), 3597)],
+gbmMODP <- train(form = P ~ ., 
+                 data = train[randomSubset , c(allSpectralDataNoCO2, spatialPredictors, depthIx, 3587)],
                  method = "gbm",
                  tuneGrid = gbmGrid,
                  trControl = GBMControl,
@@ -391,14 +401,14 @@ gbmMODP <- train(form = log(P + 2) ~ .,
 ggplot(gbmMODP)  + theme(legend.position = "top")
 
 #Find optimal number of trees
-treesP <- treeFinder(gbmMODP$finalModel, dataNew = train[randomSubset , c(seq(2, 3595), 3597)])
+treesP <- treeFinder(gbmMODP$finalModel, dataNew = train[randomSubset , c(allSpectralDataNoCO2, spatialPredictors, depthIx, 3587)])
 
 #---------------------------------------------------------------
 #Hiper parameter 5-fold Cross-validation "ph"
 set.seed(1007)
 randomSubset <- sample.int(nrow(train), nrow(train)) #full data
 gbmMODph <- train(form = pH ~ ., 
-                  data = train[randomSubset , c(seq(2, 3595), 3598)],
+                  data = train[randomSubset , c(allSpectralDataNoCO2, spatialPredictors, depthIx, 3588)],
                   method = "gbm",
                   tuneGrid = gbmGrid,
                   trControl = GBMControl,
@@ -410,14 +420,14 @@ gbmMODph <- train(form = pH ~ .,
 ggplot(gbmMODph)  + theme(legend.position = "top")
 
 #Find optimal number of trees
-treesph <- treeFinder(gbmMODph$finalModel, dataNew = train[randomSubset , c(seq(2, 3595), 3598)])
+treesph <- treeFinder(gbmMODph$finalModel, dataNew = train[randomSubset , c(allSpectralDataNoCO2, spatialPredictors, depthIx, 3588)])
 
 #---------------------------------------------------------------
 #Hiper parameter 5-fold Cross-validation "SOC"
 set.seed(1008)
 randomSubset <- sample.int(nrow(train), nrow(train)) #full data
 gbmMODSOC <- train(form = SOC ~ ., 
-                   data = train[randomSubset , c(seq(2, 3595), 3599)],
+                   data = train[randomSubset , c(allSpectralDataNoCO2, spatialPredictors, depthIx, 3589)],
                    method = "gbm",
                    tuneGrid = gbmGrid,
                    trControl = GBMControl,
@@ -429,14 +439,14 @@ gbmMODSOC <- train(form = SOC ~ .,
 ggplot(gbmMODSOC)  + theme(legend.position = "top")
 
 #Find optimal number of trees
-treesSOC <- treeFinder(gbmMODSOC$finalModel, dataNew = train[randomSubset , c(seq(2, 3595), 3599)])
+treesSOC <- treeFinder(gbmMODSOC$finalModel, dataNew = train[randomSubset , c(allSpectralDataNoCO2, spatialPredictors, depthIx, 3589)])
 
 #---------------------------------------------------------------
 #Hiper parameter 5-fold Cross-validation "Sand"
 set.seed(1009)
 randomSubset <- sample.int(nrow(train), nrow(train)) #full data
 gbmMODSand <- train(form = Sand ~ ., 
-                    data = train[randomSubset , c(seq(2, 3595), 3600)],
+                    data = train[randomSubset , c(allSpectralDataNoCO2, spatialPredictors, depthIx, 3590)],
                     method = "gbm",
                     tuneGrid = gbmGrid,
                     trControl = GBMControl,
@@ -448,7 +458,7 @@ gbmMODSand <- train(form = Sand ~ .,
 ggplot(gbmMODSand)  + theme(legend.position = "top")
 
 #Find optimal number of trees
-treesSand <- treeFinder(gbmMODSand$finalModel, dataNew = train[randomSubset , c(seq(2, 3595), 3600)])
+treesSand <- treeFinder(gbmMODSand$finalModel, dataNew = train[randomSubset , c(allSpectralDataNoCO2, spatialPredictors, depthIx, 3590)])
 
 #########################################################
 #Final Models using h2o GBMs 
@@ -574,9 +584,9 @@ hyperParametersAllDataNoCO2 <- gridCrossValidationh2oDeepnets(DataDir = paste0(d
                                                               maxMem = '5g')
 
 noDropout <- c('Rectifier', 'Tanh', 'Maxout')
-hidden_layers = list(c(100, 100), c(200, 200), c(100, 100, 100), c(200, 200, 200))
-gridAda <- expand.grid(c(0.9, 0.95, 0.99), c(1e-12, 1e-10, 1e-8, 1e-6), stringsAsFactors = TRUE) #this creates all possible combinations
-gridLs <- expand.grid(c(0, 1e-5, 1e-3), c(0, 1e-5, 1e-3), stringsAsFactors = TRUE) #this creates all possible combinations
+hidden_layers = list(c(200, 200), c(100, 100, 100), c(200, 200, 200))
+gridAda <- expand.grid(c(0.95, 0.99), c(1e-12, 1e-10), stringsAsFactors = TRUE) #this creates all possible combinations
+gridLs <- expand.grid(c(0, 1e-5), c(0, 1e-5), stringsAsFactors = TRUE) #this creates all possible combinations
 
 #--------------------------------------------------
 #Create an h2o parsed data

@@ -38,9 +38,9 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
         
         Prediction <- unlist(as.data.frame(h2o.predict(model, newdata = splitObject[[1]][folds == k, ])))
         RMSEError <- rmse(targets80[folds == k, target], Prediction)
+        h2o.rm(object = localH2O, keys = h2o.ls(localH2O)$Key[1:(length(h2o.ls(localH2O)$Key) - 3)])
         return(RMSEError) 
       })
-      h2o.rm(object = localH2O, keys = h2o.ls(localH2O)$Key[1:(length(h2o.ls(localH2O)$Key) - 3)])
       print(paste0(target, ' RMSE Error of ', mean(CVErrors), ' with activation: ', actvs))
       return(mean(CVErrors))      
     })    
@@ -51,7 +51,7 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
   optimalParameters <- cbind(predCol, optimalActivations)
   
   #Create a set of network topologies
-  hidden_layers = list(c(100, 100), c(200, 200), c(100, 100, 100), c(200, 200, 200))
+  hidden_layers = list(c(200, 200), c(100, 100, 100), c(200, 200, 200))
   
   optimalArchitecture <- apply(optimalParameters, 1, function(parameters){
     activationsErrors <- lapply(hidden_layers, function(architecture){
@@ -69,13 +69,13 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
                                   hidden = architecture,
                                   input_dropout_ratio = 0,
                                   l2 = ifelse(parameters[2] == 'Rectifier' | parameters[2] == 'Tanh', 1e-5, 0),
-                                  epochs = architecture[1]/5 * length(architecture))  
+                                  epochs = floor((architecture[1]/5 * length(architecture))*0.6))  
         
         Prediction <- unlist(as.data.frame(h2o.predict(model, newdata = splitObject[[1]][folds == k, ])))
         RMSEError <- rmse(targets80[folds == k, parameters[1]], Prediction)
+        h2o.rm(object = localH2O, keys = h2o.ls(localH2O)$Key[1:(length(h2o.ls(localH2O)$Key) - 3)])
         return(RMSEError)         
       })
-      h2o.rm(object = localH2O, keys = h2o.ls(localH2O)$Key[1:(length(h2o.ls(localH2O)$Key) - 3)])
       print(paste0(parameters[1], ' RMSE Error of ', mean(CVErrors), ' with activation: ', parameters[2], 
                    ' and ', length(architecture), ' hidden layers of ', architecture, ' units each'))
       return(mean(CVErrors))            
@@ -88,7 +88,7 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
   
   #ADADELTA
   #grid search
-  gridAda <- expand.grid(c(0.9, 0.95, 0.99), c(1e-12, 1e-10, 1e-8, 1e-6), stringsAsFactors = TRUE) #this creates all possible combinations
+  gridAda <- expand.grid(c(0.95, 0.99), c(1e-12, 1e-10), stringsAsFactors = TRUE) #this creates all possible combinations
   
   optimalAdaParams <- apply(optimalParameters, 1, function(parameters){
     activationsErrors <- apply(gridAda, 1, function(adaDelta){ 
@@ -109,13 +109,13 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
                                   epsilon = as.numeric(adaDelta[2]),
                                   input_dropout_ratio = 0,
                                   l2 = ifelse(parameters[2] == 'Rectifier' | parameters[2] == 'Tanh', 1e-5, 0),
-                                  epochs = hidden_layers[[as.numeric(parameters[3])]][1]/5 * length(hidden_layers[[as.numeric(parameters[3])]]))  
+                                  epochs = floor((hidden_layers[[as.numeric(parameters[3])]][1]/5 * length(hidden_layers[[as.numeric(parameters[3])]]))*0.6))  
         
         Prediction <- unlist(as.data.frame(h2o.predict(model, newdata = splitObject[[1]][folds == k, ])))
-        RMSEError <- rmse(targets80[folds == k, parameters[1]], Prediction)         
+        RMSEError <- rmse(targets80[folds == k, parameters[1]], Prediction)      
+        h2o.rm(object = localH2O, keys = h2o.ls(localH2O)$Key[1:(length(h2o.ls(localH2O)$Key) - 3)])
         return(RMSEError)        
       })
-      h2o.rm(object = localH2O, keys = h2o.ls(localH2O)$Key[1:(length(h2o.ls(localH2O)$Key) - 3)])
       print(paste0(parameters[1], ' RMSE Error of ', mean(CVErrors), ' with activation: ', parameters[2], 
                    ' and ', length(hidden_layers[[as.numeric(parameters[3])]]), ' hidden layers of ',
                    hidden_layers[[as.numeric(parameters[3])]], ' units each. Adadelta rho of ', as.numeric(adaDelta[1]), 
@@ -130,7 +130,7 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
   
   #l1-l2 regularization
   #grid search
-  gridLs <- expand.grid(c(0, 1e-5, 1e-3), c(0, 1e-5, 1e-3), stringsAsFactors = TRUE) #this creates all possible combinations
+  gridLs <- expand.grid(c(0, 1e-5), c(0, 1e-5), stringsAsFactors = TRUE) #this creates all possible combinations
   
   optimalLParams <- apply(optimalParameters, 1, function(parameters){
     activationsErrors <- apply(gridLs, 1, function(L){ 
@@ -152,13 +152,13 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
                                   input_dropout_ratio = 0,
                                   l1 = as.numeric(L[1]),
                                   l2 = as.numeric(L[2]),
-                                  epochs = hidden_layers[[as.numeric(parameters[3])]][1]/5 * length(hidden_layers[[as.numeric(parameters[3])]]))  
+                                  epochs = floor((hidden_layers[[as.numeric(parameters[3])]][1]/5 * length(hidden_layers[[as.numeric(parameters[3])]]))*0.6))  
         
         Prediction <- unlist(as.data.frame(h2o.predict(model, newdata = splitObject[[1]][folds == k, ])))
-        RMSEError <- rmse(targets80[folds == k, parameters[1]], Prediction)         
+        RMSEError <- rmse(targets80[folds == k, parameters[1]], Prediction)    
+        h2o.rm(object = localH2O, keys = h2o.ls(localH2O)$Key[1:(length(h2o.ls(localH2O)$Key) - 3)])
         return(RMSEError)        
       })
-      h2o.rm(object = localH2O, keys = h2o.ls(localH2O)$Key[1:(length(h2o.ls(localH2O)$Key) - 3)])
       print(paste0(parameters[1], ' RMSE Error of ', mean(CVErrors), ' with activation: ', parameters[2], 
                    ' and ', length(hidden_layers[[as.numeric(parameters[3])]]), ' hidden layers of ',
                    hidden_layers[[as.numeric(parameters[3])]], ' units each. Adadelta rho of ',  gridAda[as.numeric(parameters[4]), 1], 
@@ -188,7 +188,7 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
                                 input_dropout_ratio = 0,
                                 l1 = gridLs[as.numeric(parameters[5]), 1],
                                 l2 = gridLs[as.numeric(parameters[5]), 2],
-                                epochs = hidden_layers[[as.numeric(parameters[3])]][1]/5 * length(hidden_layers[[as.numeric(parameters[3])]]))  
+                                epochs = floor((hidden_layers[[as.numeric(parameters[3])]][1]/5 * length(hidden_layers[[as.numeric(parameters[3])]]))*0.6))  
       
       Prediction <- unlist(as.data.frame(h2o.predict(model, newdata = splitObject[[2]])))
       if(parameters[1] != 'P'){
