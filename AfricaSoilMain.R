@@ -300,7 +300,6 @@ names(trainALSSGS)[length(trainALSSGS) - 5] <- 'Depth'
 set.seed(1011)
 randomSubset <- sample.int(nrow(trainALSSGS), nrow(trainALSSGS)) #full data
 trainALSSGS <- trainALSSGS[randomSubset, ]
-trainALSSGS$P <- log(trainALSSGS$P + 2)
 write.csv(trainALSSGS, file = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'), row.names = FALSE)
 
 #Spectra / CO2 and others
@@ -629,7 +628,7 @@ DeepNNGBMModelP <- h2o.deeplearning(x = c(allSpectralDataNoCO2, spatialPredictor
                                     l2 = gridLs[as.numeric(hyperParametersAllDataNoCO2[[1]][2, 5]), 2],
                                     epochs = 250)
 #Prediction
-NNPredictionP <- exp(as.data.frame(h2o.predict(DeepNNGBMModelP, newdata = africaTest.hex))) - 2
+NNPredictionP <- as.data.frame(h2o.predict(DeepNNGBMModelP, newdata = africaTest.hex))
 #Clean data in server
 h2o.rm(object = localH2O, keys = h2o.ls(localH2O)$Key[1])
 
