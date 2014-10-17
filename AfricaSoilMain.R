@@ -65,7 +65,7 @@ write.csv(test, file = paste0(dataDirectory, 'testNumeric.csv'), row.names = FAL
 CO2SignalOR <- seq(which(names(train) == 'm2379.76'), which(names(train) == 'm2352.76'))
 allSpectralDataOR <- seq(which(names(train) == 'm7497.96'), which(names(train) == 'm599.76'))
 allSpectralDataNoCO2OR <- c(seq(which(names(train) == 'm7497.96'), which(names(train) == 'm2379.76')), 
-                          seq(which(names(train) == 'm2352.76'), which(names(train) == 'm599.76')))
+                            seq(which(names(train) == 'm2352.76'), which(names(train) == 'm599.76')))
 spatialPredictorsOR <- seq(which(names(train) == 'BSAN'), which(names(train) == 'TMFI'))
 depthIxOR <- which(names(train) == 'Depth')
 
@@ -130,7 +130,7 @@ trainMeanSmoother <- as.data.frame(movav(train[ , allSpectralDataOR], w = 11))
 trainMeanSmoother <- cbind(train[ , 'PIDN'], trainMeanSmoother, train[ , spatialPredictorsOR], train$Depth)
 names(trainMeanSmoother)[1] <- 'PIDN'
 names(trainMeanSmoother)[length(trainMeanSmoother)] <- 'Depth'
-  
+
 #Spectra / CO2 and others
 CO2Signal <- seq(which(names(trainMeanSmoother) == 'm2379.76'), which(names(trainMeanSmoother) == 'm2352.76'))
 allSpectralData <- seq(2, length(trainMeanSmoother) - 16)
@@ -545,7 +545,7 @@ write.csv(submissionTemplate, file = "PredictionGBMI.csv", row.names = FALSE)
 #Deep Learning with H2O
 #Create an h2o parsed data
 require('h2o')
-localH2O <- h2o.init(ip = "localhost", port = 54321, max_mem_size = '1g', startH2O = TRUE)
+localH2O <- h2o.init(ip = "localhost", port = 54321, max_mem_size = '13g', startH2O = TRUE)
 africa.hex <- h2o.importFile(localH2O, path = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'))
 
 ##################################################################################
@@ -566,32 +566,32 @@ h2o.shutdown(localH2O, prompt = FALSE)
 #hyperparameter search
 hyperParametersAllSpectra <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'),
                                                             predictorsCols = allSpectralData,
-                                                            maxMem = '5g')
+                                                            maxMem = '13g')
 hyperParametersSpectraNoCO2 <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'),
                                                               predictorsCols = allSpectralDataNoCO2,
-                                                              maxMem = '5g')
+                                                              maxMem = '13g')
 hyperParametersAllSpectraDepth <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'),
                                                                  predictorsCols = c(allSpectralData, depthIx), 
-                                                                 maxMem = '5g')
+                                                                 maxMem = '13g')
 hyperParametersSpectraNoCO2Depth <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'),
                                                                    predictorsCols = c(allSpectralDataNoCO2, depthIx),
-                                                                   maxMem = '5g')
+                                                                   maxMem = '13g')
 hyperParametersAllData <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'),
                                                          predictorsCols = c(allSpectralData, spatialPredictors, depthIx),
-                                                         maxMem = '5g')
+                                                         maxMem = '13g')
 hyperParametersAllDataNoCO2 <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'),
                                                               predictorsCols = c(allSpectralDataNoCO2, spatialPredictors, depthIx),
-                                                              maxMem = '5g')
+                                                              maxMem = '13g')
 
 noDropout <- c('Rectifier', 'Tanh', 'Maxout')
-hidden_layers = list(c(200, 200), c(100, 100, 100), c(200, 200, 200))
+hidden_layers = list(c(250, 250), c(100, 100, 100), c(250, 250, 250))
 gridAda <- expand.grid(c(0.95, 0.99), c(1e-12, 1e-10), stringsAsFactors = TRUE) #this creates all possible combinations
 gridLs <- expand.grid(c(0, 1e-5), c(0, 1e-5), stringsAsFactors = TRUE) #this creates all possible combinations
 
 #--------------------------------------------------
 #Create an h2o parsed data
 require('h2o')
-localH2O <- h2o.init(ip = "localhost", port = 54321, max_mem_size = '5g', startH2O = TRUE)
+localH2O <- h2o.init(ip = "localhost", port = 54321, max_mem_size = '13g', startH2O = TRUE)
 africa.hex <- h2o.importFile(localH2O, path = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'))
 #Test Data
 africaTest.hex = h2o.importFile(localH2O, path = paste0(dataDirectory, 'testALSSGS.csv'))
@@ -608,64 +608,64 @@ DeepNNModelCa <- h2o.deeplearning(x = c(allSpectralDataNoCO2, spatialPredictors,
                                   input_dropout_ratio = 0,
                                   l1 = gridLs[as.numeric(hyperParametersAllDataNoCO2[[1]][1, 5]), 1],
                                   l2 = gridLs[as.numeric(hyperParametersAllDataNoCO2[[1]][1, 5]), 2],
-                                  epochs = 200)
+                                  epochs = 250)
 #Prediction
 NNPredictionCa <- as.data.frame(h2o.predict(DeepNNModelCa, newdata = africaTest.hex))
 #Clean data in server
 h2o.rm(object = localH2O, keys = h2o.ls(localH2O)$Key[1])
 
 #----------------------------------------------------------------
-DeepNNGBMModelP <- h2o.deeplearning(x = c(allSpectralData, spatialPredictors, depthIx),
-                                    y = hyperParametersAllData[[1]][2, 'predCol'],
+DeepNNGBMModelP <- h2o.deeplearning(x = c(allSpectralDataNoCO2, spatialPredictors, depthIx),
+                                    y = hyperParametersAllDataNoCO2[[1]][2, 'predCol'],
                                     data = africa.hex,
                                     classification = FALSE, balance_classes = FALSE, 
-                                    activation = hyperParametersAllData[[1]][2, 2],
-                                    hidden = hidden_layers[[as.numeric(hyperParametersAllData[[1]][2, 3])]],
+                                    activation = hyperParametersAllDataNoCO2[[1]][2, 2],
+                                    hidden = hidden_layers[[as.numeric(hyperParametersAllDataNoCO2[[1]][2, 3])]],
                                     adaptive_rate = TRUE,
-                                    rho = gridAda[as.numeric(hyperParametersAllData[[1]][2, 4]), 1],
-                                    epsilon = gridAda[as.numeric(hyperParametersAllData[[1]][2, 4]), 2],
+                                    rho = gridAda[as.numeric(hyperParametersAllDataNoCO2[[1]][2, 4]), 1],
+                                    epsilon = gridAda[as.numeric(hyperParametersAllDataNoCO2[[1]][2, 4]), 2],
                                     input_dropout_ratio = 0,
-                                    l1 = gridLs[as.numeric(hyperParametersAllData[[1]][1, 5]), 1],
-                                    l2 = gridLs[as.numeric(hyperParametersAllData[[1]][1, 5]), 2],
-                                    epochs = 200)
+                                    l1 = gridLs[as.numeric(hyperParametersAllDataNoCO2[[1]][2, 5]), 1],
+                                    l2 = gridLs[as.numeric(hyperParametersAllDataNoCO2[[1]][2, 5]), 2],
+                                    epochs = 250)
 #Prediction
 NNPredictionP <- exp(as.data.frame(h2o.predict(DeepNNGBMModelP, newdata = africaTest.hex))) - 2
 #Clean data in server
 h2o.rm(object = localH2O, keys = h2o.ls(localH2O)$Key[1])
 
 #----------------------------------------------------------------
-DeepNNGBMModepH <- h2o.deeplearning(x = c(allSpectralDataNoCO2, depthIx),
-                                    y = hyperParametersSpectraNoCO2Depth[[1]][3, 'predCol'],
+DeepNNGBMModepH <- h2o.deeplearning(x = c(allSpectralDataNoCO2, spatialPredictors, depthIx),
+                                    y = hyperParametersAllDataNoCO2[[1]][3, 'predCol'],
                                     data = africa.hex,
                                     classification = FALSE, balance_classes = FALSE, 
-                                    activation = hyperParametersSpectraNoCO2Depth[[1]][3, 2],
-                                    hidden = hidden_layers[[as.numeric(hyperParametersSpectraNoCO2Depth[[1]][3, 3])]],
+                                    activation = hyperParametersAllDataNoCO2[[1]][3, 2],
+                                    hidden = hidden_layers[[as.numeric(hyperParametersAllDataNoCO2[[1]][3, 3])]],
                                     adaptive_rate = TRUE,
-                                    rho = gridAda[as.numeric(hyperParametersSpectraNoCO2Depth[[1]][3, 4]), 1],
-                                    epsilon = gridAda[as.numeric(hyperParametersSpectraNoCO2Depth[[1]][3, 4]), 2],
+                                    rho = gridAda[as.numeric(hyperParametersAllDataNoCO2[[1]][3, 4]), 1],
+                                    epsilon = gridAda[as.numeric(hyperParametersAllDataNoCO2[[1]][3, 4]), 2],
                                     input_dropout_ratio = 0,
-                                    l1 = gridLs[as.numeric(hyperParametersSpectraNoCO2Depth[[1]][1, 5]), 1],
-                                    l2 = gridLs[as.numeric(hyperParametersSpectraNoCO2Depth[[1]][1, 5]), 2],
-                                    epochs = 200)
+                                    l1 = gridLs[as.numeric(hyperParametersAllDataNoCO2[[1]][3, 5]), 1],
+                                    l2 = gridLs[as.numeric(hyperParametersAllDataNoCO2[[1]][3, 5]), 2],
+                                    epochs = 250)
 #Prediction
 NNPredictionpH <- as.data.frame(h2o.predict(DeepNNGBMModepH, newdata = africaTest.hex))
 #Clean data in server
 h2o.rm(object = localH2O, keys = h2o.ls(localH2O)$Key[1])
 
 #----------------------------------------------------------------
-DeepNNGBMModeSOC <- h2o.deeplearning(x = c(allSpectralData, spatialPredictors, depthIx),
-                                     y = hyperParametersAllData[[1]][4, 'predCol'],
+DeepNNGBMModeSOC <- h2o.deeplearning(x = c(allSpectralDataNoCO2, spatialPredictors, depthIx),
+                                     y = hyperParametersAllDataNoCO2[[1]][4, 'predCol'],
                                      data = africa.hex,
                                      classification = FALSE, balance_classes = FALSE, 
-                                     activation = hyperParametersAllData[[1]][4, 2],
-                                     hidden = hidden_layers[[as.numeric(hyperParametersAllData[[1]][4, 3])]],
+                                     activation = hyperParametersAllDataNoCO2[[1]][4, 2],
+                                     hidden = hidden_layers[[as.numeric(hyperParametersAllDataNoCO2[[1]][4, 3])]],
                                      adaptive_rate = TRUE,
-                                     rho = gridAda[as.numeric(hyperParametersAllData[[1]][4, 4]), 1],
-                                     epsilon = gridAda[as.numeric(hyperParametersAllData[[1]][4, 4]), 2],
+                                     rho = gridAda[as.numeric(hyperParametersAllDataNoCO2[[1]][4, 4]), 1],
+                                     epsilon = gridAda[as.numeric(hyperParametersAllDataNoCO2[[1]][4, 4]), 2],
                                      input_dropout_ratio = 0,
-                                     l1 = gridLs[as.numeric(hyperParametersAllData[[1]][1, 5]), 1],
-                                     l2 = gridLs[as.numeric(hyperParametersAllData[[1]][1, 5]), 2],
-                                     epochs = 200)
+                                     l1 = gridLs[as.numeric(hyperParametersAllDataNoCO2[[1]][4, 5]), 1],
+                                     l2 = gridLs[as.numeric(hyperParametersAllDataNoCO2[[1]][4, 5]), 2],
+                                     epochs = 250)
 #Prediction
 NNPredictionSOC <- as.data.frame(h2o.predict(DeepNNGBMModeSOC, newdata = africaTest.hex))
 #Clean data in server
@@ -682,9 +682,9 @@ DeepNNGBMModeSand <- h2o.deeplearning(x = c(allSpectralDataNoCO2, spatialPredict
                                       rho = gridAda[as.numeric(hyperParametersAllDataNoCO2[[1]][5, 4]), 1],
                                       epsilon = gridAda[as.numeric(hyperParametersAllDataNoCO2[[1]][5, 4]), 2],
                                       input_dropout_ratio = 0,
-                                      l1 = gridLs[as.numeric(hyperParametersAllDataNoCO2[[1]][1, 5]), 1],
-                                      l2 = gridLs[as.numeric(hyperParametersAllDataNoCO2[[1]][1, 5]), 2],
-                                      epochs = 200)
+                                      l1 = gridLs[as.numeric(hyperParametersAllDataNoCO2[[1]][5, 5]), 1],
+                                      l2 = gridLs[as.numeric(hyperParametersAllDataNoCO2[[1]][5, 5]), 2],
+                                      epochs = 250)
 #Prediction
 NNPredictionSand <- as.data.frame(h2o.predict(DeepNNGBMModeSand, newdata = africaTest.hex))
 #Clean data in server
@@ -702,4 +702,4 @@ submissionTemplate$P <- exp(unlist(NNPredictionP)) - 2
 submissionTemplate$pH <- unlist(NNPredictionpH)
 submissionTemplate$SOC <- unlist(NNPredictionSOC)
 submissionTemplate$Sand <- unlist(NNPredictionSand)
-write.csv(submissionTemplate, file = "PredictionDeepNNI.csv", row.names = FALSE)
+write.csv(submissionTemplate, file = "PredictionDeepNNII.csv", row.names = FALSE)

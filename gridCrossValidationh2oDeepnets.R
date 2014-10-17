@@ -51,7 +51,7 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
   optimalParameters <- cbind(predCol, optimalActivations)
   
   #Create a set of network topologies
-  hidden_layers = list(c(200, 200), c(100, 100, 100), c(200, 200, 200))
+  hidden_layers = list(c(250, 250), c(100, 100, 100), c(250, 250, 250))
   
   optimalArchitecture <- apply(optimalParameters, 1, function(parameters){
     activationsErrors <- lapply(hidden_layers, function(architecture){
