@@ -300,7 +300,13 @@ names(trainALSSGS)[length(trainALSSGS) - 5] <- 'Depth'
 set.seed(1011)
 randomSubset <- sample.int(nrow(trainALSSGS), nrow(trainALSSGS)) #full data
 trainALSSGS <- trainALSSGS[randomSubset, ]
+trainALSSGS$P <- log(trainALSSGS$P + 2)
 write.csv(trainALSSGS, file = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'), row.names = FALSE)
+#Make a Shuffled CSV to train h2o models
+set.seed(1012)
+randomSubset <- sample.int(nrow(trainALSSGS), nrow(trainALSSGS)) #full data
+trainALSSGS <- trainALSSGS[randomSubset, ]
+write.csv(trainALSSGS, file = paste0(dataDirectory, 'trainingALSSGSShuffledNoLog.csv'), row.names = FALSE)
 
 #Spectra / CO2 and others
 CO2Signal <- seq(which(names(trainALSSGS) == 'm2379.76'), which(names(trainALSSGS) == 'm2352.76'))
@@ -592,6 +598,8 @@ gridLs <- expand.grid(c(0, 1e-5), c(0, 1e-5), stringsAsFactors = TRUE) #this cre
 require('h2o')
 localH2O <- h2o.init(ip = "localhost", port = 54321, max_mem_size = '13g', startH2O = TRUE)
 africa.hex <- h2o.importFile(localH2O, path = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'))
+africaNoLog.hex <- h2o.importFile(localH2O, path = paste0(dataDirectory, 'trainingALSSGSShuffledNoLog.csv'))
+
 #Test Data
 africaTest.hex = h2o.importFile(localH2O, path = paste0(dataDirectory, 'testALSSGS.csv'))
 
@@ -628,7 +636,26 @@ DeepNNGBMModelP <- h2o.deeplearning(x = c(allSpectralDataNoCO2, spatialPredictor
                                     l2 = gridLs[as.numeric(hyperParametersAllDataNoCO2[[1]][2, 5]), 2],
                                     epochs = 250)
 #Prediction
-NNPredictionP <- as.data.frame(h2o.predict(DeepNNGBMModelP, newdata = africaTest.hex))
+NNPredictionP <- exp(as.data.frame(h2o.predict(DeepNNGBMModelP, newdata = africaTest.hex))) - 2
+#Clean data in server
+h2o.rm(object = localH2O, keys = h2o.ls(localH2O)$Key[1])
+
+#----------------------------------------------------------------
+DeepNNGBMModelPnoLog <- h2o.deeplearning(x = c(allSpectralDataNoCO2, spatialPredictors, depthIx),
+                                         y = hyperParametersAllDataNoCO2[[1]][2, 'predCol'],
+                                         data = africaNoLog.hex,
+                                         classification = FALSE, balance_classes = FALSE, 
+                                         activation = hyperParametersAllDataNoCO2[[1]][2, 2],
+                                         hidden = hidden_layers[[as.numeric(hyperParametersAllDataNoCO2[[1]][2, 3])]],
+                                         adaptive_rate = TRUE,
+                                         rho = gridAda[as.numeric(hyperParametersAllDataNoCO2[[1]][2, 4]), 1],
+                                         epsilon = gridAda[as.numeric(hyperParametersAllDataNoCO2[[1]][2, 4]), 2],
+                                         input_dropout_ratio = 0,
+                                         l1 = gridLs[as.numeric(hyperParametersAllDataNoCO2[[1]][2, 5]), 1],
+                                         l2 = gridLs[as.numeric(hyperParametersAllDataNoCO2[[1]][2, 5]), 2],
+                                         epochs = 250)
+#Prediction
+NNPredictionPnoLog <- as.data.frame(h2o.predict(DeepNNGBMModelPnoLog, newdata = africaTest.hex))
 #Clean data in server
 h2o.rm(object = localH2O, keys = h2o.ls(localH2O)$Key[1])
 
@@ -697,8 +724,24 @@ h2o.shutdown(localH2O, prompt = FALSE)
 #Write .csv 
 #Deep NN
 submissionTemplate$Ca <- unlist(NNPredictionCa)
-submissionTemplate$P <- exp(unlist(NNPredictionP)) - 2
+submissionTemplate$P <- unlist(NNPredictionP)
 submissionTemplate$pH <- unlist(NNPredictionpH)
 submissionTemplate$SOC <- unlist(NNPredictionSOC)
 submissionTemplate$Sand <- unlist(NNPredictionSand)
 write.csv(submissionTemplate, file = "PredictionDeepNNII.csv", row.names = FALSE)
+
+#Deep NN P no log
+submissionTemplate$Ca <- unlist(NNPredictionCa)
+submissionTemplate$P <- unlist(NNPredictionPnoLog)
+submissionTemplate$pH <- unlist(NNPredictionpH)
+submissionTemplate$SOC <- unlist(NNPredictionSOC)
+submissionTemplate$Sand <- unlist(NNPredictionSand)
+write.csv(submissionTemplate, file = "PredictionDeepNNIINoLog.csv", row.names = FALSE)
+
+#Deep NN P combined
+submissionTemplate$Ca <- unlist(NNPredictionCa)
+submissionTemplate$P <- colMeans(cbind(unlist(NNPredictionP), unlist(NNPredictionPnoLog)))
+submissionTemplate$pH <- unlist(NNPredictionpH)
+submissionTemplate$SOC <- unlist(NNPredictionSOC)
+submissionTemplate$Sand <- unlist(NNPredictionSand)
+write.csv(submissionTemplate, file = "PredictionDeepNNIICombined.csv", row.names = FALSE)
