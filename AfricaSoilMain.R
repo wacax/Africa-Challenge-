@@ -278,77 +278,31 @@ multiplot(Cagg, Pgg, pHgg, SOCgg, Sandgg, cols = 3)
 #Data Smoothing and Baseine Correction
 #Train Data
 #Running Polinomial Smoother (Savitzky-Golay filtering)
-trainSGSmoother <- as.data.frame(savitzkyGolay(train[ , allSpectralDataOR], p = 3, w = 11, m = 0))
-trainSGSmoother <- cbind(train[ , 'PIDN'], trainSGSmoother, train[ , spatialPredictorsOR], train$Depth)
-names(trainSGSmoother)[1] <- 'PIDN'
-names(trainSGSmoother)[length(trainSGSmoother)] <- 'Depth'
-
-#Spectra / CO2 and others
-CO2Signal <- seq(which(names(trainSGSmoother) == 'm2379.76'), which(names(trainSGSmoother) == 'm2352.76'))
-allSpectralData <- seq(2, length(trainSGSmoother) - 16)
-allSpectralDataNoCO2 <- c(seq(2, which(names(trainSGSmoother) == 'm2379.76')), 
-                          seq(which(names(trainSGSmoother) == 'm2352.76'), length(trainSGSmoother) - 16))
-spatialPredictors <- seq(which(names(trainSGSmoother) == 'BSAN'), which(names(trainSGSmoother) == 'TMFI'))
-depthIx <- which(names(trainSGSmoother) == 'Depth')
-
-trainALSSGS <- as.data.frame(baseline.corr(trainSGSmoother[ , allSpectralData]))
-trainALSSGS <- cbind(train[ , 'PIDN'], trainALSSGS, train[ , spatialPredictorsOR], train$Depth, train[ , c('Ca', 'P', 'pH', 'SOC', 'Sand')])
+dataSGSmoother <- as.data.frame(savitzkyGolay(rbind(train[ , allSpectralDataOR], test[ , allSpectralDataOR]),
+                                               p = 3, w = 11, m = 0))
+dataALSSGS <- as.data.frame(baseline.corr(dataSGSmoother))
+#training data
+trainALSSGS <- cbind(train[ , 'PIDN'], dataALSSGS[1:dim(train)[1], ], train[ , spatialPredictorsOR],
+                     train$Depth, train[ , c('Ca', 'P', 'pH', 'SOC', 'Sand')])
 names(trainALSSGS)[1] <- 'PIDN'
 names(trainALSSGS)[length(trainALSSGS) - 5] <- 'Depth'
+#test data
+testALSSGS <- cbind(test[ , 'PIDN'], dataALSSGS[(dim(train)[1] + 1):dim(dataALSSGS)[1], ],
+                    test[ , spatialPredictorsOR],
+                    test$Depth)
+names(testALSSGS)[1] <- 'PIDN'
+names(testALSSGS)[length(testALSSGS)] <- 'Depth'
 
 #Make a Shuffled CSV to train h2o models
 set.seed(1011)
 randomSubset <- sample.int(nrow(trainALSSGS), nrow(trainALSSGS)) #full data
 trainALSSGS <- trainALSSGS[randomSubset, ]
-trainALSSGS$P <- log(trainALSSGS$P + 2)
+trainALSSGS$PLog <- log(trainALSSGS$P + 2)
 write.csv(trainALSSGS, file = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'), row.names = FALSE)
-#Make a Shuffled CSV to train h2o models
-set.seed(1012)
-randomSubset <- sample.int(nrow(trainALSSGS), nrow(trainALSSGS)) #full data
-trainALSSGS <- trainALSSGS[randomSubset, ]
-write.csv(trainALSSGS, file = paste0(dataDirectory, 'trainingALSSGSShuffledNoLog.csv'), row.names = FALSE)
-
-#Spectra / CO2 and others
-CO2Signal <- seq(which(names(trainALSSGS) == 'm2379.76'), which(names(trainALSSGS) == 'm2352.76'))
-allSpectralData <- seq(2, length(trainALSSGS) - 21)
-allSpectralDataNoCO2 <- c(seq(2, which(names(trainALSSGS) == 'm2379.76')), 
-                          seq(which(names(trainALSSGS) == 'm2352.76'), length(trainALSSGS) - 21))
-spatialPredictors <- seq(which(names(trainALSSGS) == 'BSAN'), which(names(trainALSSGS) == 'TMFI'))
-depthIx <- which(names(trainALSSGS) == 'Depth')
-
-#Subsoil all spectra
-ALSSGSSpectraSubsoil <- plotSpectra(10, spectralData = allSpectralData, subsample = which(trainALSSGS$Depth == 0), trainALSSGS)
-#Topsoil all spectra
-ALSSGSSpectraTopsoil <- plotSpectra(10, spectralData = allSpectralData, subsample = which(trainALSSGS$Depth == 1), trainALSSGS)
-#Subsoil no CO2
-ALSSGSDataNoCO2Subsoil <- plotSpectra(10, spectralData = allSpectralDataNoCO2, subsample = which(trainALSSGS$Depth == 0), trainALSSGS)
-#Topsoil no CO2
-ALSSGSDataNoCO2Topsoil <- plotSpectra(10, spectralData = allSpectralDataNoCO2, subsample = which(trainALSSGS$Depth == 1), trainALSSGS)
-
-multiplot(ALSSGSSpectraSubsoil, ALSSGSSpectraTopsoil, ALSSGSDataNoCO2Subsoil, ALSSGSDataNoCO2Topsoil, cols = 2)
-
-#Test Data
-#Running Polinomial Smoother (Savitzky-Golay filtering)
-testSGSmoother <- as.data.frame(savitzkyGolay(test[ , allSpectralDataOR], p = 3, w = 11, m = 0))
-testSGSmoother <- cbind(test[ , 'PIDN'], testSGSmoother, test[ , spatialPredictorsOR], test$Depth)
-names(testSGSmoother)[1] <- 'PIDN'
-names(testSGSmoother)[length(testSGSmoother)] <- 'Depth'
-
-#Spectra / CO2 and others
-CO2Signal <- seq(which(names(testSGSmoother) == 'm2379.76'), which(names(testSGSmoother) == 'm2352.76'))
-allSpectralData <- seq(2, length(testSGSmoother) - 16)
-allSpectralDataNoCO2 <- c(seq(2, which(names(testSGSmoother) == 'm2379.76')), 
-                          seq(which(names(testSGSmoother) == 'm2352.76'), length(testSGSmoother) - 16))
-spatialPredictors <- seq(which(names(testSGSmoother) == 'BSAN'), which(names(testSGSmoother) == 'TMFI'))
-depthIx <- which(names(testSGSmoother) == 'Depth')
-
-testALSSGS <- as.data.frame(baseline.corr(testSGSmoother[ , allSpectralData]))
-testALSSGS <- cbind(test[ , 'PIDN'], testALSSGS, test[ , spatialPredictorsOR], test$Depth)
-names(testALSSGS)[1] <- 'PIDN'
-names(testALSSGS)[length(testALSSGS)] <- 'Depth'
 
 #Make CSV to test h2o models
 write.csv(testALSSGS, file = paste0(dataDirectory, 'testALSSGS.csv'), row.names = FALSE)
+
 ###################################################
 #MODELLING
 #GBM
@@ -540,7 +494,7 @@ h2o.shutdown(localH2O, prompt = FALSE)
 #.csv Creation
 #GBM
 submissionTemplate$Ca <- unlist(GBMPredictionCa)
-submissionTemplate$P <- exp(unlist(GBMPredictionP)) - 2
+submissionTemplate$P <- unlist(GBMPredictionP)
 submissionTemplate$pH <- unlist(GBMPredictionpH)
 submissionTemplate$SOC <- unlist(GBMPredictionSOC)
 submissionTemplate$Sand <- unlist(GBMPredictionSand)
@@ -556,9 +510,9 @@ africa.hex <- h2o.importFile(localH2O, path = paste0(dataDirectory, 'trainingALS
 ##################################################################################
 CO2Signal <- seq(which(names(africa.hex) == 'm2379.76'), which(names(africa.hex) == 'm2352.76'))
 
-allSpectralData <- seq(2, length(africa.hex) - 21)
+allSpectralData <- seq(2, length(africa.hex) - 22)
 allSpectralDataNoCO2 <- c(seq(2, which(names(africa.hex) == 'm2379.76')), 
-                          seq(which(names(africa.hex) == 'm2352.76'), length(africa.hex) - 21))
+                          seq(which(names(africa.hex) == 'm2352.76'), length(africa.hex) - 22))
 
 spatialPredictors <- seq(which(names(africa.hex) == 'BSAN'), which(names(africa.hex) == 'TMFI'))
 depthIx <- which(names(africa.hex) == 'Depth')
@@ -598,7 +552,6 @@ gridLs <- expand.grid(c(0, 1e-5), c(0, 1e-5), stringsAsFactors = TRUE) #this cre
 require('h2o')
 localH2O <- h2o.init(ip = "localhost", port = 54321, max_mem_size = '13g', startH2O = TRUE)
 africa.hex <- h2o.importFile(localH2O, path = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'))
-africaNoLog.hex <- h2o.importFile(localH2O, path = paste0(dataDirectory, 'trainingALSSGSShuffledNoLog.csv'))
 
 #Test Data
 africaTest.hex = h2o.importFile(localH2O, path = paste0(dataDirectory, 'testALSSGS.csv'))
@@ -636,26 +589,26 @@ DeepNNGBMModelP <- h2o.deeplearning(x = c(allSpectralDataNoCO2, spatialPredictor
                                     l2 = gridLs[as.numeric(hyperParametersAllDataNoCO2[[1]][2, 5]), 2],
                                     epochs = 250)
 #Prediction
-NNPredictionP <- exp(as.data.frame(h2o.predict(DeepNNGBMModelP, newdata = africaTest.hex))) - 2
+NNPredictionP <- as.data.frame(h2o.predict(DeepNNGBMModelP, newdata = africaTest.hex))
 #Clean data in server
 h2o.rm(object = localH2O, keys = h2o.ls(localH2O)$Key[1])
 
 #----------------------------------------------------------------
-DeepNNGBMModelPnoLog <- h2o.deeplearning(x = c(allSpectralDataNoCO2, spatialPredictors, depthIx),
-                                         y = hyperParametersAllDataNoCO2[[1]][2, 'predCol'],
-                                         data = africaNoLog.hex,
-                                         classification = FALSE, balance_classes = FALSE, 
-                                         activation = hyperParametersAllDataNoCO2[[1]][2, 2],
-                                         hidden = hidden_layers[[as.numeric(hyperParametersAllDataNoCO2[[1]][2, 3])]],
-                                         adaptive_rate = TRUE,
-                                         rho = gridAda[as.numeric(hyperParametersAllDataNoCO2[[1]][2, 4]), 1],
-                                         epsilon = gridAda[as.numeric(hyperParametersAllDataNoCO2[[1]][2, 4]), 2],
-                                         input_dropout_ratio = 0,
-                                         l1 = gridLs[as.numeric(hyperParametersAllDataNoCO2[[1]][2, 5]), 1],
-                                         l2 = gridLs[as.numeric(hyperParametersAllDataNoCO2[[1]][2, 5]), 2],
-                                         epochs = 250)
+DeepNNGBMModelPLog <- h2o.deeplearning(x = c(allSpectralDataNoCO2, spatialPredictors, depthIx),
+                                       y = 'PLog',
+                                       data = africa.hex,
+                                       classification = FALSE, balance_classes = FALSE, 
+                                       activation = hyperParametersAllDataNoCO2[[1]][2, 2],
+                                       hidden = hidden_layers[[as.numeric(hyperParametersAllDataNoCO2[[1]][2, 3])]],
+                                       adaptive_rate = TRUE,
+                                       rho = gridAda[as.numeric(hyperParametersAllDataNoCO2[[1]][2, 4]), 1],
+                                       epsilon = gridAda[as.numeric(hyperParametersAllDataNoCO2[[1]][2, 4]), 2],
+                                       input_dropout_ratio = 0,
+                                       l1 = gridLs[as.numeric(hyperParametersAllDataNoCO2[[1]][2, 5]), 1],
+                                       l2 = gridLs[as.numeric(hyperParametersAllDataNoCO2[[1]][2, 5]), 2],
+                                       epochs = 250)
 #Prediction
-NNPredictionPnoLog <- as.data.frame(h2o.predict(DeepNNGBMModelPnoLog, newdata = africaTest.hex))
+NNPredictionPLog <- exp(as.data.frame(h2o.predict(DeepNNGBMModelPLog, newdata = africaTest.hex))) - 2
 #Clean data in server
 h2o.rm(object = localH2O, keys = h2o.ls(localH2O)$Key[1])
 
@@ -730,17 +683,17 @@ submissionTemplate$SOC <- unlist(NNPredictionSOC)
 submissionTemplate$Sand <- unlist(NNPredictionSand)
 write.csv(submissionTemplate, file = "PredictionDeepNNII.csv", row.names = FALSE)
 
-#Deep NN P no log
+#Deep NN P log
 submissionTemplate$Ca <- unlist(NNPredictionCa)
-submissionTemplate$P <- unlist(NNPredictionPnoLog)
+submissionTemplate$P <- unlist(NNPredictionPLog)
 submissionTemplate$pH <- unlist(NNPredictionpH)
 submissionTemplate$SOC <- unlist(NNPredictionSOC)
 submissionTemplate$Sand <- unlist(NNPredictionSand)
-write.csv(submissionTemplate, file = "PredictionDeepNNIINoLog.csv", row.names = FALSE)
+write.csv(submissionTemplate, file = "PredictionDeepNNIILog.csv", row.names = FALSE)
 
 #Deep NN P combined
 submissionTemplate$Ca <- unlist(NNPredictionCa)
-submissionTemplate$P <- colMeans(cbind(unlist(NNPredictionP), unlist(NNPredictionPnoLog)))
+submissionTemplate$P <- rowMeans(cbind(unlist(NNPredictionP), unlist(NNPredictionPLog)))
 submissionTemplate$pH <- unlist(NNPredictionpH)
 submissionTemplate$SOC <- unlist(NNPredictionSOC)
 submissionTemplate$Sand <- unlist(NNPredictionSand)

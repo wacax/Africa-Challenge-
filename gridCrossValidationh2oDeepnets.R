@@ -1,6 +1,6 @@
 gridCrossValidationh2oDeepnets <- function(DataDir, 
                                            predictorsCols = 1:dim(as.data.frame(DataDir))[2],
-                                           nFolds = 5, printScore = TRUE, maxMem = '1g'){
+                                           nFolds = 5, printScore = FALSE, maxMem = '1g'){
   
   require('h2o')
   require('Metrics')
