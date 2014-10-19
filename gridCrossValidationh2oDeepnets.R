@@ -6,18 +6,18 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
   require('Metrics')
   
   #Cols to predict
-  predCol <- c('Ca', 'P', 'pH', 'SOC', 'Sand')
+  predCol <- c('Ca', 'P', 'pH', 'SOC', 'Sand', 'PLog')
   activations <- c('RectifierWithDropout', 'TanhWithDropout', 'MaxoutWithDropout', 
                    'Rectifier', 'Tanh', 'Maxout')
   noDropout <- c('Rectifier', 'Tanh', 'Maxout')
   
-  localH2O <- h2o.init(ip = "localhost", port = 54321, max_mem_size = maxMem, startH2O = TRUE)
+  localH2O <- h2o.init(ip = "localhost", port = 54321, max_mem_size = maxMem, startH2O = TRUE, nthreads = -1)
   hex <- h2o.importFile(localH2O, path = DataDir)
   splitObject <- h2o.splitFrame(hex, ratios = 0.8, shuffle = TRUE)
   targets80 <- cbind(as.data.frame(splitObject[[1]]$Ca), as.data.frame(splitObject[[1]]$P), as.data.frame(splitObject[[1]]$pH), 
-                     as.data.frame(splitObject[[1]]$SOC), as.data.frame(splitObject[[1]]$Sand))
+                     as.data.frame(splitObject[[1]]$SOC), as.data.frame(splitObject[[1]]$Sand), as.data.frame(splitObject[[1]]$Plog))
   targetsTest <- cbind(as.data.frame(splitObject[[2]]$Ca), as.data.frame(splitObject[[2]]$P), as.data.frame(splitObject[[2]]$pH), 
-                       as.data.frame(splitObject[[2]]$SOC), as.data.frame(splitObject[[2]]$Sand)) 
+                       as.data.frame(splitObject[[2]]$SOC), as.data.frame(splitObject[[2]]$Sand), as.data.frame(splitObject[[2]]$Plog)) 
   
   optimalActivations <- sapply(predCol, function(target){    
     activationsErrors <- sapply(activations, function(actvs){       
@@ -34,6 +34,8 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
                                   hidden = c(50, 50),
                                   input_dropout_ratio = 0,
                                   l2 = ifelse(actvs == 'Rectifier' | actvs == 'Tanh', 1e-5, 0),
+                                  loss = 'MeanSquare',  
+                                  reproducible = FALSE,
                                   epochs = 10)  
         
         Prediction <- unlist(as.data.frame(h2o.predict(model, newdata = splitObject[[1]][folds == k, ])))
@@ -69,6 +71,8 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
                                   hidden = architecture,
                                   input_dropout_ratio = 0,
                                   l2 = ifelse(parameters[2] == 'Rectifier' | parameters[2] == 'Tanh', 1e-5, 0),
+                                  loss = 'MeanSquare',  
+                                  reproducible = FALSE,                                  
                                   epochs = floor((architecture[1]/5 * length(architecture))*0.6))  
         
         Prediction <- unlist(as.data.frame(h2o.predict(model, newdata = splitObject[[1]][folds == k, ])))
@@ -104,11 +108,12 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
                                   validation = splitObject[[1]][folds == k, ],                                 
                                   activation = parameters[2],
                                   hidden = hidden_layers[[as.numeric(parameters[3])]],
-                                  adaptive_rate = TRUE,
                                   rho = as.numeric(adaDelta[1]),
                                   epsilon = as.numeric(adaDelta[2]),
                                   input_dropout_ratio = 0,
                                   l2 = ifelse(parameters[2] == 'Rectifier' | parameters[2] == 'Tanh', 1e-5, 0),
+                                  loss = 'MeanSquare',   
+                                  reproducible = FALSE,                                  
                                   epochs = floor((hidden_layers[[as.numeric(parameters[3])]][1]/5 * length(hidden_layers[[as.numeric(parameters[3])]]))*0.6))  
         
         Prediction <- unlist(as.data.frame(h2o.predict(model, newdata = splitObject[[1]][folds == k, ])))
@@ -146,12 +151,13 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
                                   validation = splitObject[[1]][folds == k, ],                                 
                                   activation = parameters[2],
                                   hidden = hidden_layers[[as.numeric(parameters[3])]],
-                                  adaptive_rate = TRUE,
                                   rho = gridAda[as.numeric(parameters[4]), 1],
                                   epsilon = gridAda[as.numeric(parameters[4]), 2],
                                   input_dropout_ratio = 0,
                                   l1 = as.numeric(L[1]),
                                   l2 = as.numeric(L[2]),
+                                  loss = 'MeanSquare', 
+                                  reproducible = FALSE,                                  
                                   epochs = floor((hidden_layers[[as.numeric(parameters[3])]][1]/5 * length(hidden_layers[[as.numeric(parameters[3])]]))*0.6))  
         
         Prediction <- unlist(as.data.frame(h2o.predict(model, newdata = splitObject[[1]][folds == k, ])))
@@ -181,17 +187,19 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
                                 data = splitObject[[1]],
                                 classification = FALSE, balance_classes = FALSE, 
                                 activation = parameters[2],
+                                validation = splitObject[[2]],                                  
                                 hidden = hidden_layers[[as.numeric(parameters[3])]],
-                                adaptive_rate = TRUE,
                                 rho = gridAda[as.numeric(parameters[4]), 1],
                                 epsilon = gridAda[as.numeric(parameters[4]), 2],
                                 input_dropout_ratio = 0,
                                 l1 = gridLs[as.numeric(parameters[5]), 1],
                                 l2 = gridLs[as.numeric(parameters[5]), 2],
+                                loss = 'MeanSquare',   
+                                reproducible = FALSE,                                
                                 epochs = floor((hidden_layers[[as.numeric(parameters[3])]][1]/5 * length(hidden_layers[[as.numeric(parameters[3])]]))*0.6))  
       
       Prediction <- unlist(as.data.frame(h2o.predict(model, newdata = splitObject[[2]])))
-      if(parameters[1] != 'P'){
+      if(parameters[1] != 'PLog'){
         RMSEError <- rmse(targetsTest[parameters[1]], Prediction)        
       }else{
         RMSEError <- rmse((exp(targetsTest[parameters[1]]) - 2), exp(Prediction) - 2)
@@ -206,7 +214,7 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
                    ' L2 Value of: ', gridLs[as.numeric(parameters[5]), 2]))
       return(RMSEError)
     })  
-    print(paste0('MCRMSE Score of: ', mean(RMSEs)))
+    print(paste0('MCRMSE Score of: ', mean(RMSEs[1:5])))
   }
   
   #Return all results plus errors
