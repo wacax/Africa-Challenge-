@@ -53,7 +53,7 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
   optimalParameters <- cbind(predCol, optimalActivations)
   
   #Create a set of network topologies
-  hidden_layers = list(c(250, 250), c(100, 100, 100), c(250, 250, 250))
+  hidden_layers = list(c(200, 200), c(100, 100, 100), c(200, 200, 200))
   
   optimalArchitecture <- apply(optimalParameters, 1, function(parameters){
     activationsErrors <- lapply(hidden_layers, function(architecture){
@@ -108,6 +108,7 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
                                   validation = splitObject[[1]][folds == k, ],                                 
                                   activation = parameters[2],
                                   hidden = hidden_layers[[as.numeric(parameters[3])]],
+                                  adaptive_rate = TRUE,
                                   rho = as.numeric(adaDelta[1]),
                                   epsilon = as.numeric(adaDelta[2]),
                                   input_dropout_ratio = 0,
@@ -151,6 +152,7 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
                                   validation = splitObject[[1]][folds == k, ],                                 
                                   activation = parameters[2],
                                   hidden = hidden_layers[[as.numeric(parameters[3])]],
+                                  adaptive_rate = TRUE,                                  
                                   rho = gridAda[as.numeric(parameters[4]), 1],
                                   epsilon = gridAda[as.numeric(parameters[4]), 2],
                                   input_dropout_ratio = 0,
@@ -189,6 +191,7 @@ gridCrossValidationh2oDeepnets <- function(DataDir,
                                 activation = parameters[2],
                                 validation = splitObject[[2]],                                  
                                 hidden = hidden_layers[[as.numeric(parameters[3])]],
+                                adaptive_rate = TRUE,                                
                                 rho = gridAda[as.numeric(parameters[4]), 1],
                                 epsilon = gridAda[as.numeric(parameters[4]), 2],
                                 input_dropout_ratio = 0,

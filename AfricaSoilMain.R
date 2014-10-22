@@ -15,14 +15,9 @@ require('pls')
 require('ptw')
 require('leaps')
 require('caret')
-require('rpart')
-require('gbm')
-require('survival')
-require('splines')
-require('survival')
+require('glmnet')
 require('parallel')
-require('plyr')
-require('fastICA')
+require('doParallel')
 
 #Set Working Directory
 workingDirectory <- '/home/wacax/Wacax/Kaggle/Africa Tuesday/Africa Soil Property Prediction Challenge/'
@@ -274,9 +269,9 @@ multiplot(Cagg, Pgg, pHgg, SOCgg, Sandgg, cols = 3)
 #Data Smoothing and Baseine Correction
 #Train Data
 #Running Polinomial Smoother (Savitzky-Golay filtering)
-dataSGSmoother <- as.data.frame(savitzkyGolay(rbind(train[ , allSpectralDataOR], test[ , allSpectralDataOR]),
-                                               p = 3, w = 11, m = 0))
-dataALSSGS <- as.data.frame(baseline.corr(dataSGSmoother))
+dataALSSGS <- as.data.frame(savitzkyGolay(rbind(train[ , allSpectralDataOR], test[ , allSpectralDataOR]),
+                                               p = 2, w = 19, m = 1))
+#dataALSSGS <- as.data.frame(baseline.corr(dataSGSmoother))
 #training data
 trainALSSGS <- cbind(train[ , 'PIDN'], dataALSSGS[1:dim(train)[1], ], train[ , spatialPredictorsOR],
                      train$Depth, train[ , c('Ca', 'P', 'pH', 'SOC', 'Sand')])
@@ -422,10 +417,6 @@ require('h2o')
 localH2O = h2o.init(ip = "localhost", port = 54321, max_mem_size = '4g', startH2O = TRUE)
 africa.hex = h2o.importFile(localH2O, path = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'))
 
-#data frames as h2o / not necesary h2o is reading directly from .csv files
-#trainh2o <- as.h2o(localH2O, train, key = 'PIDN')
-#testh2o <- as.h2o(localH2O, test, key = 'PIDN')
-
 GBMModelCa <- h2o.gbm(x = seq(2, 3595),
                       y = 'Ca',
                       data = africa.hex,
@@ -497,27 +488,21 @@ submissionTemplate$Sand <- unlist(GBMPredictionSand)
 write.csv(submissionTemplate, file = "PredictionGBMI.csv", row.names = FALSE)
 
 #########################################################
-#Deep Learning with H2O
-#Create an h2o parsed data
-require('h2o')
-localH2O <- h2o.init(ip = "localhost", port = 54321, max_mem_size = '13g', startH2O = TRUE)
-africa.hex <- h2o.importFile(localH2O, path = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'))
+#Read predictors
+africaTrain <- read.csv(paste0(dataDirectory, 'trainingALSSGSShuffled.csv'), header = TRUE, stringsAsFactors = FALSE)
 
-##################################################################################
-CO2Signal <- seq(which(names(africa.hex) == 'm2379.76'), which(names(africa.hex) == 'm2352.76'))
+CO2Signal <- seq(which(names(africaTrain) == 'm2379.76'), which(names(africaTrain) == 'm2352.76'))
 
-allSpectralData <- seq(2, length(africa.hex) - 22)
-allSpectralDataNoCO2 <- c(seq(2, which(names(africa.hex) == 'm2379.76')), 
-                          seq(which(names(africa.hex) == 'm2352.76'), length(africa.hex) - 22))
+allSpectralData <- seq(2, length(africaTrain) - 22)
+allSpectralDataNoCO2 <- c(seq(2, which(names(africaTrain) == 'm2379.76')), 
+                          seq(which(names(africaTrain) == 'm2352.76'), length(africaTrain) - 22))
 
-spatialPredictors <- seq(which(names(africa.hex) == 'BSAN'), which(names(africa.hex) == 'TMFI'))
-depthIx <- which(names(africa.hex) == 'Depth')
+spatialPredictors <- seq(which(names(africaTrain) == 'BSAN'), which(names(africaTrain) == 'TMFI'))
+depthIx <- which(names(africaTrain) == 'Depth')
 
+rm(africaTrain)
 #########################################################
-#h2o shutdown WARNING, All data on the server will be lost!
-h2o.shutdown(localH2O, prompt = FALSE)
-
-#########################################################
+#Deep NNs
 #hyperparameter search
 hyperParametersAllSpectra <- gridCrossValidationh2oDeepnets(DataDir = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'),
                                                             predictorsCols = allSpectralData,
@@ -539,7 +524,7 @@ hyperParametersAllDataNoCO2 <- gridCrossValidationh2oDeepnets(DataDir = paste0(d
                                                               maxMem = '13g')
 
 noDropout <- c('Rectifier', 'Tanh', 'Maxout')
-hidden_layers = list(c(250, 250), c(100, 100, 100), c(250, 250, 250))
+hidden_layers = list(c(200, 200), c(100, 100, 100), c(200, 200, 200))
 gridAda <- expand.grid(c(0.95, 0.99), c(1e-12, 1e-10), stringsAsFactors = TRUE) #this creates all possible combinations
 gridLs <- expand.grid(c(0, 1e-5), c(0, 1e-5), stringsAsFactors = TRUE) #this creates all possible combinations
 
@@ -550,16 +535,18 @@ localH2O <- h2o.init(ip = "localhost", port = 54321, max_mem_size = '13g', start
 africa.hex <- h2o.importFile(localH2O, path = paste0(dataDirectory, 'trainingALSSGSShuffled.csv'))
 
 #Test Data
-africaTest.hex = h2o.importFile(localH2O, path = paste0(dataDirectory, 'testALSSGS.csv'))
+africaTest.hex <- h2o.importFile(localH2O, path = paste0(dataDirectory, 'testALSSGS.csv'))
 
 predictionsNN <- apply(hyperParametersAllDataNoCO2[[1]], 1, function(hyperparameters, trainHex, testHex, nEnsembles){
   Ensemble <- sapply(1:nEnsembles, function(dummy){
-    DeepNNModel <- h2o.deeplearning(x = c(allSpectralDataNoCO2, spatialPredictors, depthIx),
+    print(h2o.ls(localH2O))
+    DeepNNModel <- h2o.deeplearning(x = c(allSpectralData, spatialPredictors, depthIx),
                                     y = hyperparameters[1],
                                     data = trainHex,
                                     classification = FALSE, balance_classes = FALSE, 
                                     activation = hyperparameters[2],
                                     hidden = hidden_layers[[as.numeric(hyperparameters[3])]],
+                                    adaptive_rate = TRUE,                                    
                                     rho = gridAda[as.numeric(hyperparameters[4]), 1],
                                     epsilon = gridAda[as.numeric(hyperparameters[4]), 2],
                                     input_dropout_ratio = 0,
@@ -567,7 +554,7 @@ predictionsNN <- apply(hyperParametersAllDataNoCO2[[1]], 1, function(hyperparame
                                     l2 = gridLs[as.numeric(hyperparameters[5]), 2],
                                     loss = 'MeanSquare',
                                     reproducible = FALSE,
-                                    epochs = 2)  
+                                    epochs = 200)  
     #Prediction
     if(hyperparameters[1] == 'PLog'){
       NNPrediction <- exp(as.data.frame(h2o.predict(DeepNNModel, newdata = testHex))) - 2
@@ -575,6 +562,7 @@ predictionsNN <- apply(hyperParametersAllDataNoCO2[[1]], 1, function(hyperparame
       NNPrediction <- as.data.frame(h2o.predict(DeepNNModel, newdata = testHex))
     }
     #Clean data in server
+    print(h2o.ls(localH2O))
     h2o.rm(object = localH2O, keys = h2o.ls(localH2O)$Key[1:(length(h2o.ls(localH2O)$Key) - 2)])
     return(NNPrediction)      
   })
@@ -592,14 +580,107 @@ predictionsNN <- as.data.frame(predictionsNN)
 #Write .csv 
 #Deep NN
 submissionTemplate[ , 2:6] <- predictionsNN[ , 1:5] 
-write.csv(submissionTemplate, file = "PredictionDeepNNVtest.csv", row.names = FALSE)
+write.csv(submissionTemplate, file = "PredictionDeepNNV.csv", row.names = FALSE)
 
 #Deep NN P log
 submissionTemplate[ , 3] <- predictionsNN[ , 6] 
 submissionTemplate[ , c(2, 4, 5, 6)] <- predictionsNN[ , c(1, 3, 4, 5)] 
-write.csv(submissionTemplate, file = "PredictionDeepNNVLogtest.csv", row.names = FALSE)
+write.csv(submissionTemplate, file = "PredictionDeepNNVLog.csv", row.names = FALSE)
 
 #Deep NN P combined
 submissionTemplate[ , 3] <- rowMeans(cbind(predictionsNN[ , 2], predictionsNN[ , 6]))
 submissionTemplate[ , c(2, 4, 5, 6)] <- predictionsNN[ , c(1, 3, 4, 5)] 
-write.csv(submissionTemplate, file = "PredictionDeepNNVCombinedtest.csv", row.names = FALSE)
+write.csv(submissionTemplate, file = "PredictionDeepNNVCombined.csv", row.names = FALSE)
+
+####################################################
+#GLMNET
+#Cross-validation
+africaTrain <- read.csv(paste0(dataDirectory, 'trainingALSSGSShuffled.csv'), header = TRUE, stringsAsFactors = FALSE)
+africaTest <- read.csv(paste0(dataDirectory, 'testALSSGS.csv'), header = TRUE, stringsAsFactors = FALSE)
+
+africaTrainMatrix <- model.matrix(~ . , data = africaTrain[, c(allSpectralDataNoCO2, spatialPredictors, depthIx)]) 
+africaTestMatrix <- model.matrix(~ . , data = africaTest[ , c(allSpectralDataNoCO2, spatialPredictors, depthIx)])
+
+#CA
+#cross validate the data, glmnet does it automatially there is no need for the caret package or a custom CV
+registerDoParallel(detectCores() - 1)
+trainCVCa <- cv.glmnet(x = africaTrainMatrix,
+                       y = africaTrain[ , 'Ca'], 
+                       nfolds = 5,
+                       parallel = TRUE, family = 'gaussian')
+plot(trainCVCa)
+coef(trainCVCa)
+#Recommended use
+plot(trainCVCa$glmnet.fit, xvar="lambda", label=TRUE)
+
+#Prediction
+GLMNETPredictionCa <- predict(trainCVCa, newx = africaTestMatrix, s= "lambda.min")   #it needs to be fixed, since model matrix deletes data, the test matrix ends up being incomplete
+
+#P
+#cross validate the data, glmnet does it automatially there is no need for the caret package or a custom CV
+registerDoParallel(detectCores() - 1)
+trainCVP <- cv.glmnet(x = africaTrainMatrix,
+                      y = africaTrain[ , 'P'], 
+                      nfolds = 5,
+                      parallel = TRUE, family = 'gaussian')
+plot(trainCVP)
+coef(trainCVP)
+#Recommended use
+plot(trainCVP$glmnet.fit, xvar="lambda", label=TRUE)
+
+#Prediction
+GLMNETPredictionP <- predict(trainCVP, newx = africaTestMatrix, s= "lambda.min")   #it needs to be fixed, since model matrix deletes data, the test matrix ends up being incomplete
+
+#pH
+#cross validate the data, glmnet does it automatially there is no need for the caret package or a custom CV
+registerDoParallel(detectCores() - 1)
+trainCVpH <- cv.glmnet(x = africaTrainMatrix,
+                       y = africaTrain[ , 'pH'], 
+                       nfolds = 5,
+                       parallel = TRUE, family = 'gaussian')
+plot(trainCVpH)
+coef(trainCVpH)
+#Recommended use
+plot(trainCVpH$glmnet.fit, xvar="lambda", label=TRUE)
+
+#Prediction
+GLMNETPredictionpH <- predict(trainCVpH, newx = africaTestMatrix, s= "lambda.min")   #it needs to be fixed, since model matrix deletes data, the test matrix ends up being incomplete
+
+#SOC
+#cross validate the data, glmnet does it automatially there is no need for the caret package or a custom CV
+registerDoParallel(detectCores() - 1)
+trainCVSOC <- cv.glmnet(x = africaTrainMatrix,
+                        y = africaTrain[ , 'SOC'], 
+                        nfolds = 5,
+                        parallel = TRUE, family = 'gaussian')
+plot(trainCVSOC)
+coef(trainCVSOC)
+#Recommended use
+plot(trainCVSOC$glmnet.fit, xvar="lambda", label=TRUE)
+
+#Prediction
+GLMNETPredictionSOC <- predict(trainCVSOC, newx = africaTestMatrix, s= "lambda.min")   #it needs to be fixed, since model matrix deletes data, the test matrix ends up being incomplete
+
+#Sand
+#cross validate the data, glmnet does it automatially there is no need for the caret package or a custom CV
+registerDoParallel(detectCores() - 1)
+trainCVSand <- cv.glmnet(x = africaTrainMatrix,
+                         y = africaTrain[ , 'Sand'], 
+                         nfolds = 5,
+                         parallel = TRUE, family = 'gaussian')
+plot(trainCVSand)
+coef(trainCVSand)
+#Recommended use
+plot(trainCVSand$glmnet.fit, xvar="lambda", label=TRUE)
+
+#Prediction
+GLMNETPredictionSand <- predict(trainCVSand, newx = africaTestMatrix, s= "lambda.min")   #it needs to be fixed, since model matrix deletes data, the test matrix ends up being incomplete
+
+#Write .csv
+submissionTemplate$Ca <- GLMNETPredictionCa
+submissionTemplate$P <- GLMNETPredictionP
+submissionTemplate$pH <- GLMNETPredictionpH
+submissionTemplate$SOC <- GLMNETPredictionSOC
+submissionTemplate$Sand <- GLMNETPredictionSand
+write.csv(submissionTemplate, file = "PredictionGLMNETI.csv", row.names = FALSE)
+
